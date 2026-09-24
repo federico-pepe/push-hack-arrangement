@@ -7,6 +7,27 @@ the text "Arrangement Mode". The second press closes the view at once.
 While the mode is on, the hack uses push-manager's MIDI intercept. Live does not
 see the Push buttons, pads and encoders.
 
+**Status:** milestone 4. Zoom and scroll work. See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
+
+## Controls (while Arrangement Mode is on)
+
+| Control | Action |
+|---|---|
+| Shift + Session | Turn the mode on or off |
+| Volume dial | Zoom in time (horizontal) |
+| Tempo dial | Zoom tracks (vertical). When lanes are tall enough, track and clip names appear |
+| Jog wheel | Scroll in time |
+| D-pad up / down | Scroll tracks |
+| D-pad left / right | Scroll a quarter screen in time |
+
+While the song plays, the view follows the playhead. It stops following for 2 seconds after you move the view.
+
+The view shows
+the text "Arrangement Mode". The second press closes the view at once.
+
+While the mode is on, the hack uses push-manager's MIDI intercept. Live does not
+see the Push buttons, pads and encoders.
+
 **Status:** milestone 3. A Remote Script inside Live sends the arrangement of the **open** set
 (also unsaved edits) and the playhead to the hack. The whole song fits on the screen. Zoom and
 scroll come next. See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).

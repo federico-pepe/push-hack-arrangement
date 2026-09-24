@@ -18,6 +18,10 @@ import (
 func main() {
 	pm := flag.String("pm", "http://127.0.0.1:7701", "push-manager base URL")
 	setPath := flag.String("set", "", "dev: show this saved Live Set (.als) instead of the Remote Script data")
+	hz := flag.Int("hzoom", 0, "preview: horizontal zoom ticks")
+	vz := flag.Int("vzoom", 0, "preview: vertical zoom ticks")
+	scroll := flag.Int("scroll", 0, "preview: scroll ticks in time")
+	tscroll := flag.Int("tracks", 0, "preview: scroll tracks")
 	preview := flag.String("preview", "", "write the view to this PNG and exit (needs -set, no device needed)")
 	flag.Parse()
 
@@ -31,7 +35,7 @@ func main() {
 			log.Fatal(err)
 		}
 		defer f.Close()
-		if err := png.Encode(f, renderArrangement(s, fitView(s))); err != nil {
+		if err := png.Encode(f, renderArrangement(s, previewView(s, *hz, *vz, *scroll, *tscroll))); err != nil {
 			log.Fatal(err)
 		}
 		log.Printf("wrote %s (%d tracks)", *preview, len(s.Tracks))
@@ -45,12 +49,13 @@ func main() {
 	go runDependencyWatcher(*pm)
 
 	st := &store{}
+	vc := newViewCtl(func() *Set { s, _, _ := st.get(); return s })
 	frame := func() image.Image {
 		s, msg, hint := st.get()
 		if s == nil {
 			return renderMessage(msg, hint)
 		}
-		return renderArrangement(s, fitView(s))
+		return renderArrangement(s, vc.viewport(s))
 	}
 	mode := newModeCtl(client, frame)
 
@@ -63,9 +68,20 @@ func main() {
 		}
 		st.putSet(s)
 	} else {
-		go runLiveSource(st, mode.refresh, stop)
+		go runLiveSource(st, func() {
+			if mode.isOn() {
+				t, playing := st.pos()
+				vc.follow(t, playing)
+			}
+			mode.refresh()
+		}, stop)
 	}
-	h := &midiHandler{chord: newChordDetector(), onFire: mode.toggle}
+	h := &midiHandler{chord: newChordDetector(), onFire: mode.toggle,
+		onCC: func(cc, val uint8) {
+			if mode.isOn() && vc.handleCC(cc, val) {
+				mode.refresh()
+			}
+		}}
 	go runMIDI(h, stop)
 
 	log.Print("arrangement ready: press Shift+Session on Push")
@@ -76,4 +92,15 @@ func main() {
 	log.Print("stopping: releasing display + MIDI intercept")
 	close(stop)
 	mode.release() // always, whatever the last state was
+}
+
+// previewView applies zoom/scroll ticks to a fit view, for `make preview` screenshots.
+func previewView(s *Set, hz, vz, scroll, tracks int) viewport {
+	vc := newViewCtl(func() *Set { return s })
+	vc.viewport(s)
+	vc.zoomH(hz)
+	vc.zoomV(vz)
+	vc.scrollT(scroll)
+	vc.scrollTracks(tracks)
+	return vc.viewport(s)
 }

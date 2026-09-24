@@ -50,6 +50,12 @@ func (st *store) putMessage(msg, hint string) {
 	st.set, st.msg, st.hint = nil, msg, hint
 }
 
+func (st *store) pos() (float64, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.playhead, st.playing
+}
+
 func (st *store) putPos(t float64, playing bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()

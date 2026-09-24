@@ -16,6 +16,7 @@ const midiPortName = "Arrangement MIDI In"
 type midiHandler struct {
 	chord  *chordDetector
 	onFire func()
+	onCC   func(cc, val uint8) // every other control CC (view controls)
 }
 
 func (h *midiHandler) Fixed(evType uint8, src alsaseq.Addr, data []byte) {
@@ -33,6 +34,10 @@ func (h *midiHandler) Fixed(evType uint8, src alsaseq.Addr, data []byte) {
 	val := uint8(binary.LittleEndian.Uint32(data[8:]) & 0x7F)
 	if h.chord.onCC(cc, val) {
 		go h.onFire()
+		return
+	}
+	if h.onCC != nil {
+		h.onCC(cc, val)
 	}
 }
 

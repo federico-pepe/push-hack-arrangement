@@ -121,3 +121,9 @@ func keepDark(quit <-chan struct{}) {
 		}
 	}
 }
+
+func (m *modeCtl) isOn() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.on
+}
