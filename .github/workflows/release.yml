@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify version match
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MODULE_VERSION=$(grep '"version"' hack.json | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+          if [ "$TAG_VERSION" != "$MODULE_VERSION" ]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match hack.json version ($MODULE_VERSION)"
+            exit 1
+          fi
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build
+        run: |
+          mkdir -p dist/arrangement
+          cd src
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o ../dist/arrangement/arrangement .
+          cd ..
+          cp hack.json dist/arrangement/hack.json
+          chmod +x dist/arrangement/arrangement
+
+      - name: Package
+        run: tar -czf arrangement.tar.gz -C dist arrangement
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: arrangement.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit release.json
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git fetch origin main
+          git checkout -f main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cat > release.json << JSON
+          {
+            "version": "${VERSION}",
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/arrangement.tar.gz",
+            "released_at": "${RELEASED_AT}"
+          }
+          JSON
+          git add release.json
+          git commit -m "chore: update release.json for ${{ github.ref_name }}" || echo "No changes to commit"
+          git push origin main

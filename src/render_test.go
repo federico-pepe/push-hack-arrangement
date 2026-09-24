@@ -9,6 +9,20 @@ func TestTestFrameSize(t *testing.T) {
 	}
 }
 
+func TestOSDKeepsSizeAndDoesNotMutateBase(t *testing.T) {
+	base := renderTestFrame()
+	before := append([]byte(nil), base.Pix...)
+	out := renderWithOSD(base, "Arrangement Mode: ON")
+	if out.Bounds() != base.Bounds() {
+		t.Fatal("size changed")
+	}
+	for i := range before {
+		if base.Pix[i] != before[i] {
+			t.Fatal("base mutated")
+		}
+	}
+}
+
 func TestItoa(t *testing.T) {
 	for n, want := range map[int]string{0: "0", 7: "7", 120: "120"} {
 		if got := itoa(n); got != want {

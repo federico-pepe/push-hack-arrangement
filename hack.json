@@ -1,8 +1,9 @@
 {
   "id": "arrangement",
   "name": "Arrangement",
-  "version": "0.0.1",
+  "description": "Shows the Live Arrangement on the Push 3 screen with horizontal and vertical zoom. Toggle with Shift+Session (uses MIDI intercept). Needs push-manager + push-display installed and running.",
+  "version": "0.0.1-alpha",
+  "author": "federico-pepe",
   "binary": "arrangement",
-  "enabled": true,
-  "description": "Arrangement view on the Push 3 screen with horizontal and vertical zoom. Toggle with Shift+Session. Needs push-manager and push-display installed and running."
+  "enabled": true
 }

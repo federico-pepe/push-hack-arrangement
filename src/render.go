@@ -71,3 +71,17 @@ func itoa(n int) string {
 	}
 	return string(b[i:])
 }
+
+// renderWithOSD returns a copy of base with a centred message box on top.
+func renderWithOSD(base *image.NRGBA, msg string) *image.NRGBA {
+	img := image.NewNRGBA(base.Rect)
+	copy(img.Pix, base.Pix)
+	scale := 3
+	w := text.WidthScaled(msg, scale) + 48
+	h := 13*scale + 28
+	x, y := (screenW-w)/2, (screenH-h)/2
+	gfx.FillRect(img, x-2, y-2, w+4, h+4, colPlay)
+	gfx.FillRect(img, x, y, w, h, colBG)
+	text.DrawScaled(img, x+24, y+14+13*scale-6, scale, msg, colPlay)
+	return img
+}
