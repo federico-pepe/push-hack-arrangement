@@ -1,9 +1,11 @@
 {
   "id": "arrangement",
   "name": "Arrangement",
-  "description": "Shows the Live Arrangement on the Push 3 screen with horizontal and vertical zoom. Toggle with Shift+Session (uses MIDI intercept). Needs push-manager + push-display installed and running.",
+  "description": "Shows the open Live Set's arrangement on the Push 3 screen, with zoom. Toggle with Shift+Session (uses MIDI intercept). Needs push-manager + push-display, and the PushHackArrangement Remote Script (installed with this hack) enabled once in Live.",
   "version": "0.0.1-alpha",
   "author": "federico-pepe",
   "binary": "arrangement",
-  "enabled": true
+  "enabled": true,
+  "install_path": "/data/Music/Ableton/User Library/Remote Scripts/PushHackArrangement",
+  "post_install": "Select \"PushHackArrangement\" in a free control-surface slot (Input/Output = None) in Live's Preferences, then restart Live. Confirm \"PushHackArrangement alive\" in Live's Log.txt."
 }

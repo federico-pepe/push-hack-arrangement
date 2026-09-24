@@ -29,10 +29,11 @@ type Loop struct {
 }
 
 type Set struct {
-	Name     string
-	Tracks   []Track
-	Locators []Locator
-	Loop     Loop
-	Playhead float64 // saved insert marker (beats)
-	Length   float64 // end of last clip (beats)
+	Name        string
+	Tracks      []Track
+	Locators    []Locator
+	Loop        Loop
+	Playhead    float64 // saved insert marker (beats)
+	Length      float64 // end of last clip (beats)
+	BeatsPerBar float64 // 0 = 4
 }

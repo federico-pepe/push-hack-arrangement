@@ -7,6 +7,7 @@ import (
 	"image"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/federico-pepe/ableton-push-hack/core/pmclient"
 )
@@ -15,8 +16,12 @@ type modeCtl struct {
 	pm    *pmclient.Client
 	frame func() image.Image // current view, built on demand
 
-	mu sync.Mutex
-	on bool
+	mu   sync.Mutex
+	on   bool
+	quit chan struct{} // closed on OFF; stops the LED blackout loop
+
+	lastPush time.Time
+	pending  bool
 }
 
 func newModeCtl(pm *pmclient.Client, frame func() image.Image) *modeCtl {
@@ -37,10 +42,22 @@ func (m *modeCtl) toggle() {
 	m.mu.Unlock()
 
 	if !on {
+		m.mu.Lock()
+		if m.quit != nil {
+			close(m.quit)
+			m.quit = nil
+		}
+		m.mu.Unlock()
 		m.release()
 		log.Print("Arrangement Mode OFF")
 		return
 	}
+	blackoutLEDs()
+	m.mu.Lock()
+	m.quit = make(chan struct{})
+	quit := m.quit
+	m.mu.Unlock()
+	go keepDark(quit)
 	if err := m.pm.SetMode(2); err != nil {
 		log.Printf("display: enable takeover: %v", err)
 	}
@@ -61,12 +78,46 @@ func (m *modeCtl) release() {
 	}
 }
 
-// refresh redraws if the mode is on (data changed).
+// minPushGap caps redraws (each one is a PNG encode + HTTP post).
+const minPushGap = 120 * time.Millisecond
+
+// refresh redraws if the mode is on. Rate limited; a trailing redraw is
+// scheduled so the last change is never lost.
 func (m *modeCtl) refresh() {
 	m.mu.Lock()
-	on := m.on
+	if !m.on {
+		m.mu.Unlock()
+		return
+	}
+	wait := minPushGap - time.Since(m.lastPush)
+	if wait > 0 {
+		if !m.pending {
+			m.pending = true
+			time.AfterFunc(wait, func() {
+				m.mu.Lock()
+				m.pending = false
+				m.mu.Unlock()
+				m.refresh()
+			})
+		}
+		m.mu.Unlock()
+		return
+	}
+	m.lastPush = time.Now()
 	m.mu.Unlock()
-	if on {
-		m.push()
+	m.push()
+}
+
+// keepDark repeats the blackout: Live may still repaint a few LEDs.
+func keepDark(quit <-chan struct{}) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-quit:
+			return
+		case <-t.C:
+			blackoutLEDs()
+		}
 	}
 }

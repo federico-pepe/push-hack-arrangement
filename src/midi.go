@@ -51,6 +51,7 @@ func runMIDI(h alsaseq.Handler, stop <-chan struct{}) {
 			}
 			if err == nil {
 				log.Printf("subscribed to Push 3 %v", pinned)
+				setLEDClient(seq)
 				done := make(chan struct{})
 				go func() {
 					if e := seq.ReadLoop(h); e != nil {
@@ -60,9 +61,11 @@ func runMIDI(h alsaseq.Handler, stop <-chan struct{}) {
 				}()
 				select {
 				case <-stop:
+					setLEDClient(nil)
 					seq.Close()
 					return
 				case <-done:
+					setLEDClient(nil)
 					seq.Close() // reopen
 				}
 			} else {

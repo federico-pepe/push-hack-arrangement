@@ -25,7 +25,7 @@ func TestRenderSize(t *testing.T) {
 func TestRenderEmptySetDoesNotPanic(t *testing.T) {
 	s := &Set{}
 	renderArrangement(s, fitView(s))
-	renderMessage("x")
+	renderMessage("x", "y")
 }
 
 func TestClipPixelsUseClipColour(t *testing.T) {

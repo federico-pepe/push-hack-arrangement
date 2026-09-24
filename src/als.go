@@ -172,31 +172,3 @@ func parseSet(r io.Reader) (*Set, error) {
 	}
 	return s, nil
 }
-
-// FindNewestSet returns the most recently modified .als under root
-// (Sets/<project>/<name>.als), skipping Backup folders.
-func FindNewestSet(root string) (string, error) {
-	var best string
-	var bestT int64
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() && d.Name() == "Backup" {
-			return filepath.SkipDir
-		}
-		if !d.IsDir() && strings.HasSuffix(p, ".als") {
-			if info, e := d.Info(); e == nil && info.ModTime().UnixNano() > bestT {
-				best, bestT = p, info.ModTime().UnixNano()
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if best == "" {
-		return "", os.ErrNotExist
-	}
-	return best, nil
-}

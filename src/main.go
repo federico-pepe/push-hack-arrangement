@@ -17,7 +17,7 @@ import (
 
 func main() {
 	pm := flag.String("pm", "http://127.0.0.1:7701", "push-manager base URL")
-	setPath := flag.String("set", "", "Live Set (.als) to show (default: newest under "+setsRoot+")")
+	setPath := flag.String("set", "", "dev: show this saved Live Set (.als) instead of the Remote Script data")
 	preview := flag.String("preview", "", "write the view to this PNG and exit (needs -set, no device needed)")
 	flag.Parse()
 
@@ -46,16 +46,25 @@ func main() {
 
 	st := &store{}
 	frame := func() image.Image {
-		s, msg := st.get()
+		s, msg, hint := st.get()
 		if s == nil {
-			return renderMessage(msg)
+			return renderMessage(msg, hint)
 		}
 		return renderArrangement(s, fitView(s))
 	}
 	mode := newModeCtl(client, frame)
 
 	stop := make(chan struct{})
-	go watchSets(st, *setPath, mode.refresh, stop)
+	if *setPath != "" {
+		// dev: show a saved .als once instead of the Remote Script
+		s, err := LoadSetFile(*setPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		st.putSet(s)
+	} else {
+		go runLiveSource(st, mode.refresh, stop)
+	}
 	h := &midiHandler{chord: newChordDetector(), onFire: mode.toggle}
 	go runMIDI(h, stop)
 

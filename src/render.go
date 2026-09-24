@@ -16,17 +16,14 @@ const (
 	rulerH  = 14
 )
 
-const beatsPerBar = 4 // TODO: read the real time signature
-
 var (
-	colBG    = color.NRGBA{0, 0, 0, 255}
-	colGrid  = color.NRGBA{34, 34, 34, 255}
-	colBar   = color.NRGBA{90, 90, 90, 255}
-	colText  = color.NRGBA{220, 220, 220, 255}
-	colPlay  = color.NRGBA{255, 255, 255, 255}
-	colLoop  = color.NRGBA{255, 200, 0, 255}
-	colLoc   = color.NRGBA{0, 200, 255, 255}
-	colTitle = color.NRGBA{30, 30, 30, 255}
+	colBG   = color.NRGBA{0, 0, 0, 255}
+	colGrid = color.NRGBA{34, 34, 34, 255}
+	colBar  = color.NRGBA{90, 90, 90, 255}
+	colText = color.NRGBA{220, 220, 220, 255}
+	colPlay = color.NRGBA{255, 255, 255, 255}
+	colLoop = color.NRGBA{255, 200, 0, 255}
+	colLoc  = color.NRGBA{0, 200, 255, 255}
 )
 
 func rgb(c uint32) color.NRGBA {
@@ -55,7 +52,7 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, screenW, screenH))
 	gfx.FillRect(img, 0, 0, screenW, screenH, colBG)
 
-	drawRuler(img, v)
+	drawRuler(img, v, s.bpb())
 
 	n := len(s.Tracks)
 	top := rulerH + 1
@@ -109,28 +106,23 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		gfx.FillRect(img, x, 0, 2, screenH, colPlay)
 	}
 
-	// title, top right
-	const title = "Arrangement Mode"
-	tw := text.Width(title) + 10
-	gfx.FillRect(img, screenW-tw, 0, tw, rulerH-1, colTitle)
-	text.Draw(img, screenW-tw+5, 11, title, colPlay)
 	return img
 }
 
 // drawRuler: bar numbers, spacing grows so labels stay >= 48 px apart.
-func drawRuler(img *image.NRGBA, v viewport) {
+func drawRuler(img *image.NRGBA, v viewport, bpb float64) {
 	gfx.FillRect(img, 0, rulerH, screenW, 1, colBar)
-	barPx := v.ppb * beatsPerBar
+	barPx := v.ppb * bpb
 	step := 1
 	for float64(step)*barPx < 48 {
 		step *= 2
 	}
-	first := int(v.x0 / beatsPerBar)
+	first := int(v.x0 / bpb)
 	if first < 0 {
 		first = 0
 	}
 	for bar := first - first%step; ; bar += step {
-		x := v.x(float64(bar * beatsPerBar))
+		x := v.x(float64(bar) * bpb)
 		if x >= screenW {
 			break
 		}
@@ -144,10 +136,19 @@ func drawRuler(img *image.NRGBA, v viewport) {
 }
 
 // renderMessage: full-screen text, for errors ("no set found").
-func renderMessage(msg string) *image.NRGBA {
+func renderMessage(msg, hint string) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, screenW, screenH))
 	gfx.FillRect(img, 0, 0, screenW, screenH, colBG)
-	text.DrawScaled(img, 20, 60, 2, "Arrangement Mode", colPlay)
-	text.Draw(img, 20, 90, msg, colText)
+	text.DrawScaled(img, 20, 60, 2, msg, colPlay)
+	if hint != "" {
+		text.Draw(img, 20, 90, hint, colText)
+	}
 	return img
+}
+
+func (s *Set) bpb() float64 {
+	if s.BeatsPerBar > 0 {
+		return s.BeatsPerBar
+	}
+	return 4
 }

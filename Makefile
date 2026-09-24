@@ -5,7 +5,7 @@ GOOS      := linux
 GOARCH    := amd64
 LDFLAGS   := -s -w
 
-.PHONY: all build build-local preview test vet fmt clean
+.PHONY: pytest all build build-local preview test vet fmt clean
 
 all: build
 
@@ -22,6 +22,9 @@ build-local:
 preview: build-local
 	@test -f testdata/p3.als || { echo "put a Live Set at testdata/p3.als"; exit 1; }
 	$(BUILD_DIR)/$(BINARY)-local -set testdata/p3.als -preview $(BUILD_DIR)/preview.png
+
+pytest:
+	python3 -m unittest discover -s tests
 
 test:
 	cd $(SRC_DIR) && go test ./...
