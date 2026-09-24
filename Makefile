@@ -20,7 +20,8 @@ build-local:
 	cd $(SRC_DIR) && go build -o ../$(BUILD_DIR)/$(BINARY)-local .
 
 preview: build-local
-	$(BUILD_DIR)/$(BINARY)-local -preview $(BUILD_DIR)/preview.png
+	@test -f testdata/p3.als || { echo "put a Live Set at testdata/p3.als"; exit 1; }
+	$(BUILD_DIR)/$(BINARY)-local -set testdata/p3.als -preview $(BUILD_DIR)/preview.png
 
 test:
 	cd $(SRC_DIR) && go test ./...

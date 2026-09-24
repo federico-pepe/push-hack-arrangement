@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"strconv"
 
 	"github.com/federico-pepe/ableton-push-hack/core/gfx"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
@@ -15,73 +16,138 @@ const (
 	rulerH  = 14
 )
 
+const beatsPerBar = 4 // TODO: read the real time signature
+
 var (
 	colBG    = color.NRGBA{0, 0, 0, 255}
-	colGrid  = color.NRGBA{40, 40, 40, 255}
+	colGrid  = color.NRGBA{34, 34, 34, 255}
 	colBar   = color.NRGBA{90, 90, 90, 255}
 	colText  = color.NRGBA{220, 220, 220, 255}
 	colPlay  = color.NRGBA{255, 255, 255, 255}
-	testClip = []color.NRGBA{
-		{230, 80, 80, 255}, {240, 170, 60, 255}, {90, 200, 110, 255}, {80, 150, 240, 255},
-	}
+	colLoop  = color.NRGBA{255, 200, 0, 255}
+	colLoc   = color.NRGBA{0, 200, 255, 255}
+	colTitle = color.NRGBA{30, 30, 30, 255}
 )
 
-// renderTestFrame draws a fixed pattern (ruler, 4 lanes, clips, playhead) to
-// prove the display path. Text is ASCII only: the panel font has no other glyphs.
-func renderTestFrame() *image.NRGBA {
+func rgb(c uint32) color.NRGBA {
+	return color.NRGBA{uint8(c >> 16), uint8(c >> 8), uint8(c), 255}
+}
+
+// viewport: what part of the arrangement is on screen.
+type viewport struct {
+	x0  float64 // time at left edge (beats)
+	ppb float64 // pixels per beat
+}
+
+// fitView shows the whole song.
+func fitView(s *Set) viewport {
+	length := s.Length + 4
+	if length < 16 {
+		length = 16
+	}
+	return viewport{x0: 0, ppb: float64(screenW) / length}
+}
+
+func (v viewport) x(beat float64) int { return int((beat - v.x0) * v.ppb) }
+
+// renderArrangement draws the set. Text is ASCII only: the panel font has no other glyphs.
+func renderArrangement(s *Set, v viewport) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, screenW, screenH))
 	gfx.FillRect(img, 0, 0, screenW, screenH, colBG)
 
-	// ruler: one tick per "bar" (60 px), numbered
-	for i, x := 0, 0; x < screenW; i, x = i+1, x+60 {
-		gfx.FillRect(img, x, 0, 1, screenH, colGrid)
-		gfx.FillRect(img, x, 0, 1, rulerH, colBar)
-		text.Draw(img, x+3, 11, itoa(i+1), colText)
-	}
-	gfx.FillRect(img, 0, rulerH, screenW, 1, colBar)
+	drawRuler(img, v)
 
-	// 4 lanes with a few clips each
-	laneH := (screenH - rulerH - 1) / 4
-	for l := 0; l < 4; l++ {
-		y := rulerH + 1 + l*laneH
-		gfx.FillRect(img, 0, y+laneH-1, screenW, 1, colGrid)
-		c := testClip[l]
-		for k := 0; k < 5; k++ {
-			x := 20 + k*170 + l*25
-			gfx.FillRect(img, x, y+2, 130, laneH-5, c)
-			text.Draw(img, x+4, y+14, "Clip "+itoa(k+1), colBG)
+	n := len(s.Tracks)
+	top := rulerH + 1
+	avail := screenH - top
+	if n > 0 {
+		for i, tr := range s.Tracks {
+			y0 := top + i*avail/n
+			y1 := top + (i+1)*avail/n
+			h := y1 - y0
+			if h > 2 {
+				h-- // 1 px gap between lanes
+			}
+			for _, c := range tr.Clips {
+				x0, x1 := v.x(c.Start), v.x(c.End)
+				if x1 < 0 || x0 >= screenW {
+					continue
+				}
+				if x0 < 0 {
+					x0 = 0
+				}
+				w := x1 - x0
+				if w < 1 {
+					w = 1
+				}
+				if x0+w > screenW {
+					w = screenW - x0
+				}
+				gfx.FillRect(img, x0, y0, w, h, rgb(c.Color))
+			}
 		}
 	}
 
-	gfx.FillRect(img, 300, rulerH, 2, screenH-rulerH, colPlay) // playhead
-	text.Draw(img, screenW-150, screenH-6, "ARRANGEMENT TEST", colText)
+	// locators
+	for _, l := range s.Locators {
+		if x := v.x(l.Time); x >= 0 && x < screenW {
+			gfx.FillRect(img, x, 0, 1, screenH, colLoc)
+		}
+	}
+	// loop brace on the ruler
+	if s.Loop.Length > 0 {
+		x0, x1 := v.x(s.Loop.Start), v.x(s.Loop.Start+s.Loop.Length)
+		if x1 > 0 && x0 < screenW {
+			if x0 < 0 {
+				x0 = 0
+			}
+			gfx.FillRect(img, x0, rulerH-2, x1-x0, 2, colLoop)
+		}
+	}
+	// playhead (saved insert marker)
+	if x := v.x(s.Playhead); x >= 0 && x < screenW {
+		gfx.FillRect(img, x, 0, 2, screenH, colPlay)
+	}
+
+	// title, top right
+	const title = "Arrangement Mode"
+	tw := text.Width(title) + 10
+	gfx.FillRect(img, screenW-tw, 0, tw, rulerH-1, colTitle)
+	text.Draw(img, screenW-tw+5, 11, title, colPlay)
 	return img
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
+// drawRuler: bar numbers, spacing grows so labels stay >= 48 px apart.
+func drawRuler(img *image.NRGBA, v viewport) {
+	gfx.FillRect(img, 0, rulerH, screenW, 1, colBar)
+	barPx := v.ppb * beatsPerBar
+	step := 1
+	for float64(step)*barPx < 48 {
+		step *= 2
 	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
+	first := int(v.x0 / beatsPerBar)
+	if first < 0 {
+		first = 0
 	}
-	return string(b[i:])
+	for bar := first - first%step; ; bar += step {
+		x := v.x(float64(bar * beatsPerBar))
+		if x >= screenW {
+			break
+		}
+		if x < 0 {
+			continue
+		}
+		gfx.FillRect(img, x, rulerH+1, 1, screenH-rulerH-1, colGrid)
+		gfx.FillRect(img, x, 0, 1, rulerH, colBar)
+		text.Draw(img, x+3, 11, strconv.Itoa(bar+1), colText)
+	}
 }
 
-// renderWithOSD returns a copy of base with a centred message box on top.
-func renderWithOSD(base *image.NRGBA, msg string) *image.NRGBA {
-	img := image.NewNRGBA(base.Rect)
-	copy(img.Pix, base.Pix)
-	scale := 3
-	w := text.WidthScaled(msg, scale) + 48
-	h := 13*scale + 28
-	x, y := (screenW-w)/2, (screenH-h)/2
-	gfx.FillRect(img, x-2, y-2, w+4, h+4, colPlay)
-	gfx.FillRect(img, x, y, w, h, colBG)
-	text.DrawScaled(img, x+24, y+14+13*scale-6, scale, msg, colPlay)
+// renderMessage: full-screen text, for errors ("no set found").
+func renderMessage(msg string) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, screenW, screenH))
+	gfx.FillRect(img, 0, 0, screenW, screenH, colBG)
+	text.DrawScaled(img, 20, 60, 2, "Arrangement Mode", colPlay)
+	text.Draw(img, 20, 90, msg, colText)
 	return img
 }
