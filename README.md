@@ -7,7 +7,7 @@ Press Shift + Session to turn Arrangement Mode on or off. The screen shows
 The hack uses push-manager's intercept mode. While the mode is on, Live does not
 see the Push buttons, pads and encoders.
 
-**Status:** planning. See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
+**Status:** milestone 1 (static test frame). `make preview` writes `build/preview.png`; `./arrangement` on the Push shows it in takeover. See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
 
 ## Requirements
 
