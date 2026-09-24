@@ -11,3 +11,7 @@
 - All button LEDs and the pad grid go dark while Arrangement Mode is on.
 - Removed the "Arrangement Mode" title from the view.
 - Milestone 4: horizontal zoom (Volume dial), vertical zoom (Tempo dial), scroll in time (jog wheel, D-pad left/right), scroll tracks (D-pad up/down). Track and clip names show when lanes are tall enough. The view follows the playhead while playing.
+- All LEDs go dark in the mode (every CC, so the scene buttons too). Play is green while playing.
+- Jog wheel now moves the playhead (grid by zoom, speed ramp). Shift + jog scrolls the view.
+- Play starts and stops Live. Session = Back to Arrangement (amber when available). New Remote Script commands: `set_time`, `play_toggle`, `bta`. **Restart Live after updating the script.**
+- D-pad repeats while held. The view scrolls smoothly with the playhead during playback.

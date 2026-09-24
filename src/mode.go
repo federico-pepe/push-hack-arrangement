@@ -52,6 +52,7 @@ func (m *modeCtl) toggle() {
 		log.Print("Arrangement Mode OFF")
 		return
 	}
+	resetLit()
 	blackoutLEDs()
 	m.mu.Lock()
 	m.quit = make(chan struct{})

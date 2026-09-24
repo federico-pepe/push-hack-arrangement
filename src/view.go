@@ -2,10 +2,10 @@ package main
 
 // View state: zoom and scroll. All input handlers land here.
 //
-// Controls (while Arrangement Mode is on, MIDI intercept hides them from Live):
+// View controls (while Arrangement Mode is on, MIDI intercept hides them from Live):
 //   Volume dial (CC79)  horizontal zoom     Tempo dial (CC14)  vertical zoom
-//   Jog wheel  (CC70)   scroll in time      D-pad up/down      scroll tracks
-//   D-pad left/right    scroll a quarter screen in time
+//   D-pad up/down       scroll tracks       D-pad left/right   scroll a quarter screen
+// The jog wheel moves the playhead: see controls.go.
 
 import (
 	"math"
@@ -22,9 +22,9 @@ const (
 	ccDPadUp     = 46
 	ccDPadDown   = 47
 
-	zoomStep      = 1.06 // per encoder tick
-	maxPPB        = 300  // px per beat, most zoomed in
-	jogPxPerTick  = 12
+	zoomStep      = 1.06            // per encoder tick
+	maxPPB        = 300             // px per beat, most zoomed in
+	jogPxPerTick  = 24              // Shift + jog: view scroll
 	followHold    = 2 * time.Second // after a manual move, do not follow the playhead
 	gutterW       = 110             // track-name column
 	namesMinLane  = 13              // lane height (px) where names fit
@@ -163,7 +163,8 @@ func (c *viewCtl) scrollTracks(dir int) {
 	c.clamp(s)
 }
 
-// follow keeps the playhead in view while playing (unless the user just moved the view).
+// follow scrolls smoothly so the playhead stays at 25% of the clip area while
+// playing (unless the user just moved the view by hand).
 func (c *viewCtl) follow(t float64, playing bool) {
 	s := c.get()
 	if s == nil || !playing {
@@ -175,9 +176,22 @@ func (c *viewCtl) follow(t float64, playing bool) {
 		return
 	}
 	c.clamp(s)
+	c.x0 = t - c.span()*0.25
+	c.clamp(s)
+}
+
+// reveal makes sure time t is on screen; recentres the view if not.
+func (c *viewCtl) reveal(t float64) {
+	s := c.get()
+	if s == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clamp(s)
 	span := c.span()
-	if t < c.x0 || t > c.x0+span*0.92 {
-		c.x0 = t - span*0.08
+	if t < c.x0+span*0.03 || t > c.x0+span*0.97 {
+		c.x0 = t - span/2
 		c.clamp(s)
 	}
 }
@@ -200,8 +214,6 @@ func (c *viewCtl) handleCC(cc, val uint8) bool {
 		c.zoomH(decodeRel(val))
 	case ccTempoDial:
 		c.zoomV(decodeRel(val))
-	case ccJog:
-		c.scrollT(decodeRel(val))
 	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
 		if val == 0 { // act on press only
 			return false

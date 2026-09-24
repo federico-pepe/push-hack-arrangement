@@ -72,14 +72,20 @@ func main() {
 			if mode.isOn() {
 				t, playing := st.pos()
 				vc.follow(t, playing)
+				syncStateLEDs(st.state())
 			}
 			mode.refresh()
 		}, stop)
 	}
-	h := &midiHandler{chord: newChordDetector(), onFire: mode.toggle,
-		onCC: func(cc, val uint8) {
-			if mode.isOn() && vc.handleCC(cc, val) {
-				mode.refresh()
+	chord := newChordDetector()
+	ctl := newControls(vc, st, mode.isOn, func() bool { return chord.isHeld(ccShift) }, mode.refresh, sendCmd)
+	h := &midiHandler{chord: chord, onCC: ctl.onCC,
+		onFire: func() {
+			mode.toggle()
+			if mode.isOn() {
+				syncStateLEDs(st.state())
+			} else {
+				ctl.releaseAll()
 			}
 		}}
 	go runMIDI(h, stop)

@@ -1,16 +1,19 @@
 # PushHackArrangement: read-only bridge. Streams the open Live Set's arrangement
 # to the arrangement hack over a local Unix socket. No controls, no MIDI mapping.
 #
+# hack -> Live: set_time, play_toggle, bta (see commands.py), one JSON per line.
 # Live -> hack, one JSON per line:
 #   {"t":"snapshot", tracks, locators, loop, sig, tempo}   on connect + when changed
-#   {"t":"pos", time, playing}                             when changed (~10 Hz max)
+#   {"t":"pos", time, playing, bta}                        when changed (~10 Hz max)
 
+import json
 import os
 import socket
 
 from _Framework.ControlSurface import ControlSurface
 
 from .snapshot import snapshot_json, pos_json
+from .commands import apply_commands
 
 SOCK_PATH = "/tmp/push-hack-arrangement.sock"
 SNAPSHOT_EVERY_TICKS = 10        # update_display runs ~10x/s -> check ~1x/s
@@ -54,7 +57,7 @@ class PushHackArrangement(ControlSurface):
         except Exception:
             return
         conn.setblocking(False)
-        self._clients.append({"s": conn, "out": b""})
+        self._clients.append({"s": conn, "out": b"", "in": b""})
         self._last_snapshot = None   # force a snapshot for the new client
         self._last_pos = None
 
@@ -86,21 +89,41 @@ class PushHackArrangement(ControlSurface):
                 self._drop(c)
 
     def _read(self):
-        # v1 has no commands: read only to notice a closed connection.
+        """Read command lines. Returns the parsed messages."""
+        msgs = []
         for c in list(self._clients):
             try:
-                if c["s"].recv(4096) == b"":
+                data = c["s"].recv(65536)
+                if data == b"":
                     self._drop(c)
+                    continue
+                c["in"] += data
+                if len(c["in"]) > 1024 * 1024:
+                    self._drop(c)
+                    continue
             except (BlockingIOError, InterruptedError):
-                pass
+                continue
             except Exception:
                 self._drop(c)
+                continue
+            while b"\n" in c["in"]:
+                line, c["in"] = c["in"].split(b"\n", 1)
+                try:
+                    msgs.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
+        return msgs
 
     # ---- Live tick ----
     def update_display(self):
         ControlSurface.update_display(self)
         self._accept()
-        self._read()
+        msgs = self._read()
+        if msgs:
+            try:
+                apply_commands(self.song(), msgs)
+            except Exception as e:
+                self.log_message("PushHackArrangement: command error: %s" % e)
         if not self._clients:
             return
         self._tick += 1

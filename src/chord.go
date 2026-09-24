@@ -46,3 +46,10 @@ func (c *chordDetector) onCC(cc, val byte) bool {
 	c.lastFire = now
 	return true
 }
+
+// isHeld reports whether a CC is currently down.
+func (c *chordDetector) isHeld(cc uint8) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.held[cc]
+}

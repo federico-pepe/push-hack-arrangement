@@ -24,6 +24,8 @@ type store struct {
 	hint     string
 	playhead float64
 	playing  bool
+	bta      bool      // a track is off the arrangement (Back to Arrangement is lit)
+	hold     time.Time // ignore Live's time until then (we just moved it ourselves)
 }
 
 // get returns a copy of the set with the live playhead, or a message to show.
@@ -56,11 +58,32 @@ func (st *store) pos() (float64, bool) {
 	return st.playhead, st.playing
 }
 
-func (st *store) putPos(t float64, playing bool) {
+func (st *store) state() (playing, bta bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	st.playhead, st.playing = t, playing
+	return st.playing, st.bta
 }
+
+// putPos stores what Live reported. The time is ignored for a short while after
+// our own jog move, so a late report does not pull the playhead back.
+func (st *store) putPos(t float64, playing, bta bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if time.Now().After(st.hold) {
+		st.playhead = t
+	}
+	st.playing, st.bta = playing, bta
+}
+
+// setLocalTime moves the playhead at once (jog), before Live confirms.
+func (st *store) setLocalTime(t float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.playhead = t
+	st.hold = time.Now().Add(localHold)
+}
+
+const localHold = 400 * time.Millisecond
 
 const hintActivate = "Enable PushHackArrangement in Live Preferences (control surface, Input/Output None), restart Live"
 
@@ -106,6 +129,7 @@ type wireMsg struct {
 	Tempo   float64 `json:"tempo"`
 	Time    float64 `json:"time"`
 	Playing bool    `json:"playing"`
+	BTA     bool    `json:"bta"`
 }
 
 func setFromSnapshot(m *wireMsg) *Set {
@@ -144,9 +168,11 @@ func runLiveSource(st *store, onChange func(), stop <-chan struct{}) {
 	for {
 		conn, err := net.DialTimeout("unix", liveSocketPath, 2*time.Second)
 		if err == nil {
+			link.set(conn)
 			log.Print("Remote Script connected")
 			st.putMessage("Waiting for Live Set data", "")
 			readLive(conn, st, onChange, stop)
+			link.set(nil)
 			conn.Close()
 			log.Print("Remote Script disconnected")
 			st.putMessage(msgNotConnected, hintActivate)
@@ -180,8 +206,37 @@ func readLive(conn net.Conn, st *store, onChange func(), stop <-chan struct{}) {
 			log.Printf("snapshot: %d tracks, %.0f beats, %d locators", len(s.Tracks), s.Length, len(s.Locators))
 			onChange()
 		case "pos":
-			st.putPos(m.Time, m.Playing)
+			st.putPos(m.Time, m.Playing, m.BTA)
 			onChange()
 		}
 	}
+}
+
+// link: the current connection, for commands to Live.
+type liveLink struct {
+	mu   sync.Mutex
+	conn net.Conn
+}
+
+var link liveLink
+
+func (l *liveLink) set(c net.Conn) {
+	l.mu.Lock()
+	l.conn = c
+	l.mu.Unlock()
+}
+
+// sendCmd sends one command line to the Remote Script. Dropped if not connected.
+func sendCmd(m map[string]any) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return
+	}
+	link.mu.Lock()
+	defer link.mu.Unlock()
+	if link.conn == nil {
+		return
+	}
+	_ = link.conn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+	_, _ = link.conn.Write(append(b, '\n'))
 }

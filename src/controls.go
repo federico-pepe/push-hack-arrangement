@@ -1,0 +1,217 @@
+package main
+
+// Control handling while Arrangement Mode is on.
+//
+//   Jog wheel        move the playhead (grid step by zoom, speed ramp)
+//   Shift + jog      scroll the view in time
+//   Play             start / stop Live
+//   Session          Back to Arrangement (Shift + Session = leave the mode)
+//   D-pad            scroll; hold to repeat
+//   Volume / Tempo   zoom (view.go)
+
+import (
+	"math"
+	"sync"
+	"time"
+)
+
+const (
+	ccPlay = 85
+
+	jogTargetPx = 10 // wanted screen distance of one jog tick, before the speed ramp
+
+	repeatDelay     = 450 * time.Millisecond // hold time before a D-pad button repeats
+	repeatEvery     = 70 * time.Millisecond
+	repeatFastAfter = 2 * time.Second // held this long: repeat twice as fast
+)
+
+// jogGrid: musical steps, in beats. 1/64 .. 32 beats.
+var jogGrid = []float64{1.0 / 64, 1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0 / 2, 1, 2, 4, 8, 16, 32}
+
+// gridFor picks the step for a zoom: the smallest grid value that is at least
+// jogTargetPx wide on screen.
+func gridFor(ppb float64) float64 {
+	want := jogTargetPx / ppb
+	for _, g := range jogGrid {
+		if g >= want {
+			return g
+		}
+	}
+	return jogGrid[len(jogGrid)-1]
+}
+
+// jogTarget returns the new time after `ticks` grid steps (sign = direction).
+// Off-grid: the first step lands on the nearest grid line in the direction of travel.
+func jogTarget(t, step float64, ticks int) float64 {
+	if ticks == 0 {
+		return t
+	}
+	base := t / step
+	r := math.Round(base)
+	var n float64
+	switch {
+	case math.Abs(base-r) < 1e-6:
+		n = r + float64(ticks)
+	case ticks > 0:
+		n = math.Ceil(base) + float64(ticks-1)
+	default:
+		n = math.Floor(base) + float64(ticks+1)
+	}
+	return math.Max(0, n*step)
+}
+
+// jogMultiplier: faster spin (shorter gap between messages) = more steps per tick.
+func jogMultiplier(gap time.Duration) int {
+	switch {
+	case gap < 25*time.Millisecond:
+		return 8
+	case gap < 40*time.Millisecond:
+		return 4
+	case gap < 60*time.Millisecond:
+		return 2
+	}
+	return 1
+}
+
+type controls struct {
+	vc        *viewCtl
+	st        *store
+	isOn      func() bool
+	shiftHeld func() bool
+	changed   func() // request a redraw
+	send      func(map[string]any)
+
+	mu      sync.Mutex
+	lastJog time.Time
+	hold    map[uint8]chan struct{} // D-pad buttons being held
+}
+
+func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(), send func(map[string]any)) *controls {
+	return &controls{vc: vc, st: st, isOn: isOn, shiftHeld: shiftHeld, changed: changed, send: send,
+		hold: map[uint8]chan struct{}{}}
+}
+
+// onCC handles one control-surface CC.
+func (c *controls) onCC(cc, val uint8) {
+	if !c.isOn() {
+		return
+	}
+	switch cc {
+	case ccJog:
+		c.jog(decodeRel(val))
+	case ccPlay:
+		if val > 0 {
+			c.send(map[string]any{"t": "play_toggle"})
+		}
+	case ccSession:
+		// Shift + Session is the mode chord (handled before we get here).
+		if val > 0 && !c.shiftHeld() {
+			c.send(map[string]any{"t": "bta"})
+		}
+	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
+		c.dpad(cc, val)
+	default:
+		if c.vc.handleCC(cc, val) {
+			c.changed()
+		}
+	}
+}
+
+func (c *controls) jog(delta int) {
+	if delta == 0 {
+		return
+	}
+	if c.shiftHeld() {
+		c.vc.scrollT(delta)
+		c.changed()
+		return
+	}
+	s, _, _ := c.st.get()
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	c.mu.Lock()
+	gap := now.Sub(c.lastJog)
+	c.lastJog = now
+	c.mu.Unlock()
+
+	ticks := delta * jogMultiplier(gap)
+	t, _ := c.st.pos()
+	step := gridFor(c.vc.viewport(s).ppb)
+	nt := jogTarget(t, step, ticks)
+	c.st.setLocalTime(nt)
+	c.send(map[string]any{"t": "set_time", "v": nt})
+	c.vc.reveal(nt)
+	c.changed()
+}
+
+// dpad: act on press, then repeat while held.
+func (c *controls) dpad(cc, val uint8) {
+	c.mu.Lock()
+	stop, held := c.hold[cc]
+	if val == 0 {
+		if held {
+			close(stop)
+			delete(c.hold, cc)
+		}
+		c.mu.Unlock()
+		return
+	}
+	if held { // already repeating
+		c.mu.Unlock()
+		return
+	}
+	stop = make(chan struct{})
+	c.hold[cc] = stop
+	c.mu.Unlock()
+
+	c.dpadAction(cc)
+	go func() {
+		start := time.Now()
+		select {
+		case <-stop:
+			return
+		case <-time.After(repeatDelay):
+		}
+		for {
+			if !c.isOn() {
+				return
+			}
+			c.dpadAction(cc)
+			every := repeatEvery
+			if time.Since(start) > repeatFastAfter {
+				every /= 2
+			}
+			select {
+			case <-stop:
+				return
+			case <-time.After(every):
+			}
+		}
+	}()
+}
+
+func (c *controls) dpadAction(cc uint8) {
+	switch cc {
+	case ccDPadUp:
+		c.vc.scrollTracks(-1)
+	case ccDPadDown:
+		c.vc.scrollTracks(+1)
+	case ccDPadLeft:
+		c.vc.scrollPage(-1)
+	case ccDPadRight:
+		c.vc.scrollPage(+1)
+	}
+	c.changed()
+}
+
+// releaseAll stops every D-pad repeat (mode turned off).
+func (c *controls) releaseAll() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for cc, ch := range c.hold {
+		close(ch)
+		delete(c.hold, cc)
+	}
+}

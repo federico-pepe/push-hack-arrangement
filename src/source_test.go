@@ -38,9 +38,22 @@ func TestStoreMessageThenSetWithPlayhead(t *testing.T) {
 		t.Fatal("message state wrong")
 	}
 	st.putSet(&Set{Length: 8})
-	st.putPos(3.5, true)
+	st.putPos(3.5, true, false)
 	s, _, _ := st.get()
 	if s == nil || s.Playhead != 3.5 {
 		t.Fatalf("playhead %+v", s)
+	}
+}
+
+func TestLocalTimeHoldsAgainstLatePos(t *testing.T) {
+	st := &store{}
+	st.putSet(&Set{Length: 8})
+	st.setLocalTime(6)
+	st.putPos(1, true, true) // late report from Live
+	if tt, playing := st.pos(); tt != 6 || !playing {
+		t.Fatalf("t=%v playing=%v", tt, playing)
+	}
+	if _, bta := st.state(); !bta {
+		t.Fatal("bta must still update")
 	}
 }

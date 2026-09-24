@@ -66,4 +66,6 @@ def snapshot_json(song):
 def pos_json(song):
     return json.dumps({"t": "pos",
                        "time": round(float(song.current_song_time), 3),
-                       "playing": bool(song.is_playing)}, separators=(",", ":"))
+                       "playing": bool(song.is_playing),
+                       "bta": bool(_safe(lambda: song.back_to_arranger, False))},
+                      separators=(",", ":"))

@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "remote-script"))
 from snapshot import build_snapshot, pos_json  # noqa: E402
+from commands import apply_commands  # noqa: E402
 
 
 class O:
@@ -43,13 +44,53 @@ class SnapshotTest(unittest.TestCase):
 
     def test_pos(self):
         p = json.loads(pos_json(self.song()))
-        self.assertEqual(p, {"t": "pos", "time": 2.5, "playing": True})
+        self.assertEqual(p, {"t": "pos", "time": 2.5, "playing": True, "bta": False})
 
     def test_bad_track_does_not_break(self):
         song = self.song()
         song.tracks.append(O())  # no attributes at all
         s = build_snapshot(song)
         self.assertEqual(len(s["tracks"]), 4)
+
+
+class CommandsTest(unittest.TestCase):
+    def song(self):
+        calls = []
+
+        class S:
+            current_song_time = 0.0
+            is_playing = False
+            back_to_arranger = 1
+            tracks = []
+
+            def start_playing(self):
+                calls.append("start")
+                self.is_playing = True
+
+            def stop_playing(self):
+                calls.append("stop")
+                self.is_playing = False
+        return S(), calls
+
+    def test_only_last_set_time_and_others(self):
+        s, calls = self.song()
+        n = apply_commands(s, [{"t": "set_time", "v": 1}, {"t": "set_time", "v": 9.5},
+                               {"t": "play_toggle"}, {"t": "bta"}, {"t": "bogus"}])
+        self.assertEqual(n, 3)
+        self.assertEqual(s.current_song_time, 9.5)
+        self.assertEqual(calls, ["start"])
+        self.assertEqual(s.back_to_arranger, 0)
+
+    def test_toggle_stops(self):
+        s, calls = self.song()
+        s.is_playing = True
+        apply_commands(s, [{"t": "play_toggle"}])
+        self.assertEqual(calls, ["stop"])
+
+    def test_negative_time_clamped(self):
+        s, _ = self.song()
+        apply_commands(s, [{"t": "set_time", "v": -4}])
+        self.assertEqual(s.current_song_time, 0.0)
 
 
 if __name__ == "__main__":

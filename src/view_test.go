@@ -113,7 +113,7 @@ func TestFollow(t *testing.T) {
 
 func TestHandleCC(t *testing.T) {
 	vc, _ := newTestView()
-	if !vc.handleCC(ccVolumeDial, 1) || !vc.handleCC(ccTempoDial, 127) || !vc.handleCC(ccJog, 3) {
+	if !vc.handleCC(ccVolumeDial, 1) || !vc.handleCC(ccTempoDial, 127) {
 		t.Fatal("dials must be handled")
 	}
 	if vc.handleCC(ccDPadUp, 0) {
@@ -121,6 +121,9 @@ func TestHandleCC(t *testing.T) {
 	}
 	if !vc.handleCC(ccDPadDown, 127) {
 		t.Fatal("dpad press handled")
+	}
+	if vc.handleCC(ccJog, 3) {
+		t.Fatal("jog belongs to controls, not the view")
 	}
 	if vc.handleCC(99, 1) {
 		t.Fatal("unknown cc must not be handled")
