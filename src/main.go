@@ -26,6 +26,7 @@ func main() {
 	vz := flag.Int("vzoom", 0, "preview: vertical zoom ticks")
 	scroll := flag.Int("scroll", 0, "preview: scroll ticks in time")
 	tscroll := flag.Int("tracks", 0, "preview: scroll tracks")
+	bench := flag.Int("bench", 0, "dev: redraw for this many seconds with a fake playhead and print CPU use (use with -set)")
 	preview := flag.String("preview", "", "write the view to this PNG and exit (needs -set, no device needed)")
 	flag.Parse()
 
@@ -43,6 +44,24 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("wrote %s (%d tracks)", *preview, len(s.Tracks))
+		return
+	}
+
+	if *bench > 0 {
+		s, err := LoadSetFile(*setPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		vc := newViewCtl(func() *Set { return s })
+		if err := runBench(pmclient.New(*pm), s, vc, *bench); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	// The boot service starts this parent; the real work runs as a supervised child.
+	if os.Getenv(supervisedEnv) != "1" {
+		runSupervisor(*pm)
 		return
 	}
 

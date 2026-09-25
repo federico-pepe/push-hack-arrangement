@@ -53,6 +53,7 @@ func (m *modeCtl) toggle() {
 		log.Print("Arrangement Mode OFF")
 		return
 	}
+	markModeOn()
 	resetLit()
 	ledActive.Store(true)
 	blackoutLEDs()
@@ -73,6 +74,7 @@ func (m *modeCtl) toggle() {
 
 // release hands display + MIDI back to the native Push UI / Live.
 func (m *modeCtl) release() {
+	defer markModeOff()
 	if err := m.pm.SetMidiFilter(false); err != nil {
 		log.Printf("display: disable midi filter: %v", err)
 	}

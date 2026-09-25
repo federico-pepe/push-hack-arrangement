@@ -64,6 +64,11 @@ The hack talks to the Remote Script over `/tmp/push-hack-arrangement.sock`. Pyth
 Without a device, `make preview` writes `build/preview.png` from `testdata/p3.als` (not in git; use your own set).
 
 
+## Performance and safety
+
+- With a 40-track, 342-clip set, drawing at about 8 frames per second used about 6% of one core in the hack and 4% in push-manager. Memory: 6 MB for the supervisor and about 12 MB for the working process.
+- If the hack is killed while the mode is on, the supervisor gives the display and MIDI back and restarts the hack.
+
 ## Roadmap
 
 Not done yet:
@@ -71,7 +76,6 @@ Not done yet:
 - Loop: toggle and set the loop. Locators: add and jump. Punch in/out. Record. Metronome.
 - Jog step buttons (finer and coarser) and the jog-click play-start marker from the reference script.
 - Editing: nudge, resize, split, duplicate, spacer. These are from the reference script and are outside v1.
-- Measure CPU with a large set during playback. Handle a very large set (send only the visible window).
-- Recover if the hack is killed while the mode is on (the intercept stays on until the next start).
+- Send only the visible window for a very huge set (the Remote Script already slows down snapshots on big sets).
 - Install through the catalog (needs a `catalog.json` entry and a new release). Then the boot service is created for you.
 - Docs: `docs/architecture.md`, `docs/protocol.md`.

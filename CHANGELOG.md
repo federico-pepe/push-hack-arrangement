@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.2-alpha] - 2026-09-25
+
 - Project created. Plan added.
 - Milestone 1: Go skeleton draws a static 960x160 test frame in display takeover; `-preview` writes a PNG without a device.
 - Milestone 2: Shift+Session (CC49+CC51) toggles Arrangement Mode: display takeover + MIDI intercept, ON/OFF message on screen, release on exit. `scripts/deploy.sh` runs it on the Push.
@@ -19,3 +21,6 @@
 - Clips are drawn dimmed while Session clips override the arrangement (Back to Arrangement available); crisp again after Back to Arrangement. Play is white (120) when stopped.
 - Less LED flicker: pressing Play shows the new colour at once (white to green, green to white). After Play, Back to Arrangement, or a change of state reported by Live, the LED blackout repeats for about a second so Live's own repaint is covered quickly.
 - Docs: `docs/architecture.md`, `docs/protocol.md`, roadmap in the README.
+- Supervisor: the boot service starts a small parent process that runs the hack as a child and restarts it if it dies. If the child dies while Arrangement Mode is on (crash, kill -9), the parent releases the display and MIDI intercept, so Push is never left dead. Tested on the device.
+- Remote Script: on big sets it waits longer between snapshots, so building them never uses more than about 5% of Live's time.
+- `-bench <seconds>` (with `-set`): measure CPU on the device. Result with a 40-track, 342-clip set at about 7.6 frames per second: hack 5.7% of one core, push-manager 4%.

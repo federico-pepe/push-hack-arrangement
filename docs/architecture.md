@@ -19,6 +19,8 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 | File | Job |
 |---|---|
 | `main.go` | Start-up, wiring, signal handling. Releases display and MIDI on exit |
+| `supervisor.go` | The started process is a parent. It runs the hack as a child and restarts it. If the child dies with the mode on (state file `/tmp/push-hack-arrangement.mode`), it releases display and MIDI |
+| `bench.go` | `-bench` mode to measure CPU on the device |
 | `midi.go` | Own ALSA port, subscribed to Push 3 (client 16, port 0). Reads every button and dial |
 | `chord.go` | Shift (CC49) + Session (CC51) chord, 500 ms debounce |
 | `mode.go` | Arrangement Mode on/off. ON = display takeover + MIDI intercept. OFF = give both back at once |

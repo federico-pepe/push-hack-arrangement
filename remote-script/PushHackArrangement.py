@@ -9,6 +9,7 @@
 import json
 import os
 import socket
+import time
 
 from _Framework.ControlSurface import ControlSurface
 
@@ -17,6 +18,7 @@ from .commands import apply_commands
 
 SOCK_PATH = "/tmp/push-hack-arrangement.sock"
 SNAPSHOT_EVERY_TICKS = 10        # update_display runs ~10x/s -> check ~1x/s
+BUILD_BUDGET_TICKS_PER_SEC = 200  # big sets: wait (build seconds x 200) ticks, so building uses <= ~5% of the time
 MAX_OUT_BYTES = 8 * 1024 * 1024  # drop a client that cannot keep up
 
 
@@ -27,6 +29,7 @@ class PushHackArrangement(ControlSurface):
         self._srv = None
         self._clients = []
         self._tick = 0
+        self._next_snapshot_tick = 0
         self._last_snapshot = None
         self._last_pos = None
         self._open_server()
@@ -129,8 +132,15 @@ class PushHackArrangement(ControlSurface):
         self._tick += 1
         song = self.song()
         try:
-            if self._last_snapshot is None or self._tick % SNAPSHOT_EVERY_TICKS == 0:
+            if self._last_snapshot is None or self._tick >= self._next_snapshot_tick:
+                t0 = time.time()
                 snap = snapshot_json(song)
+                took = time.time() - t0
+                self._next_snapshot_tick = self._tick + max(SNAPSHOT_EVERY_TICKS,
+                                                            int(took * BUILD_BUDGET_TICKS_PER_SEC))
+                if took > 0.1:
+                    self.log_message("PushHackArrangement: snapshot took %.0f ms; next in %d ticks"
+                                     % (took * 1000, self._next_snapshot_tick - self._tick))
                 if snap != self._last_snapshot:
                     self._last_snapshot = snap
                     self._queue(snap)
