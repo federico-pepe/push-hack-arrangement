@@ -62,9 +62,9 @@ func syncStateLEDs(playing, bta bool) {
 
 // Palette indices chosen on the device.
 const (
-	ledPlayGreen     = 126 // Play while playing
-	ledPlayWhite     = 120 // Play when stopped
-	ledSessionWhite  = 120 // Back to Arrangement available (this button has a greyscale LED)
+	ledPlayGreen    = 126 // Play while playing
+	ledPlayWhite    = 120 // Play when stopped
+	ledSessionWhite = 120 // Back to Arrangement available (this button has a greyscale LED)
 )
 
 const (
