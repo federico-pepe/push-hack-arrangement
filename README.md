@@ -72,9 +72,10 @@ Without a device, `make preview` writes `build/preview.png` from `testdata/p3.al
 
 Not done yet:
 
+- Touch layer: a temporary bar on top of the arrangement when you touch a knob or the jog wheel. Design: [docs/touch-layer.md](docs/touch-layer.md). Add its content whenever a control is added.
 - Loop: toggle and set the loop. Locators: add and jump. Punch in/out. Record. Metronome.
 - Jog step buttons (finer and coarser) and the jog-click play-start marker from the reference script.
 - Editing: nudge, resize, split, duplicate, spacer. These are from the reference script and are outside v1.
 - Send only the visible window for a very huge set (the Remote Script already slows down snapshots on big sets).
 - Install through the catalog (needs a `catalog.json` entry and a new release). Then the boot service is created for you.
-- Docs: `docs/architecture.md`, `docs/protocol.md`.
+- Docs: `docs/architecture.md`, `docs/protocol.md`, `docs/touch-layer.md`.

@@ -23,4 +23,5 @@ Release: bump `hack.json` version, tag `vX.Y.Z-alpha`, push tag (workflow builds
 - Live repaints LEDs after commands (Play, Back to Arrangement). `burstLEDs` repeats the blackout for about 1 s to hide it.
 - Set the LED colour of Play at once on a press; do not wait for Live's answer.
 - Deploy by hand: `scripts/deploy.sh` (needs a terminal). Without one: stop the process, `scp` the binary and `remote-script/*.py`, start it in the background. Restart Live after changing the Remote Script.
-- Docs: `docs/architecture.md`, `docs/protocol.md`. Plan and status: `plans/`.
+- Docs: `docs/architecture.md`, `docs/protocol.md`, `docs/touch-layer.md` (planned touch layer). Plan and status: `plans/`.
+- When you add a control: update the README controls table and the touch-layer table in `docs/touch-layer.md`.
