@@ -51,6 +51,7 @@ type rig struct {
 	st      *store
 	mu      sync.Mutex
 	cmds    []map[string]any
+	fb      []string
 	on      bool
 	shift   bool
 	redraws int
@@ -66,7 +67,8 @@ func newRig() *rig {
 		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.on },
 		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.shift },
 		func() { r.mu.Lock(); r.redraws++; r.mu.Unlock() },
-		func(m map[string]any) { r.mu.Lock(); r.cmds = append(r.cmds, m); r.mu.Unlock() })
+		func(m map[string]any) { r.mu.Lock(); r.cmds = append(r.cmds, m); r.mu.Unlock() },
+		func(w string) { r.mu.Lock(); r.fb = append(r.fb, w); r.mu.Unlock() })
 	return r
 }
 
@@ -113,6 +115,11 @@ func TestPlayAndSession(t *testing.T) {
 	got := r.sent()
 	if len(got) != 2 || got[0]["t"] != "play_toggle" || got[1]["t"] != "bta" {
 		t.Fatalf("cmds %v", got)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.fb) != 2 || r.fb[0] != "play" || r.fb[1] != "bta" {
+		t.Fatalf("feedback %v", r.fb)
 	}
 }
 

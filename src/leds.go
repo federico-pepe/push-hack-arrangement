@@ -8,6 +8,8 @@ package main
 
 import (
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/federico-pepe/ableton-push-hack/core/alsaseq"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
@@ -91,3 +93,31 @@ func blackoutLEDs() {
 
 // push3Live: Push 3's Live port, where LED messages go.
 var push3Live = alsaseq.Addr{Client: alsaseq.Push3ClientDefault, Port: alsaseq.Push3PortDefault}
+
+// ledActive: true while Arrangement Mode owns the LEDs.
+var ledActive atomic.Bool
+
+// burstDelays: Live repaints LEDs a moment after a command (Play, Back to
+// Arrangement). Repeat the blackout right after, so the flicker is short.
+var burstDelays = []time.Duration{0, 40 * time.Millisecond, 90 * time.Millisecond,
+	160 * time.Millisecond, 260 * time.Millisecond, 420 * time.Millisecond,
+	700 * time.Millisecond, 1100 * time.Millisecond}
+
+// burstLEDs repeats the blackout for about a second. done (optional) runs at the
+// end, to repaint the lit LEDs from the real state.
+func burstLEDs(done func()) {
+	go func() {
+		var prev time.Duration
+		for _, d := range burstDelays {
+			time.Sleep(d - prev)
+			prev = d
+			if !ledActive.Load() {
+				return
+			}
+			blackoutLEDs()
+		}
+		if done != nil && ledActive.Load() {
+			done()
+		}
+	}()
+}

@@ -17,3 +17,4 @@
 - D-pad repeats while held. The view scrolls smoothly with the playhead during playback.
 - Accept `-config <hack.json>`: the catalog's boot service always passes it, and without it the hack would exit at boot. LEDs: Play = palette 126, Back to Arrangement = palette 4.
 - Clips are drawn dimmed while Session clips override the arrangement (Back to Arrangement available); crisp again after Back to Arrangement. Play is white (120) when stopped.
+- Less LED flicker: pressing Play shows the new colour at once (white to green, green to white). After Play, Back to Arrangement, or a change of state reported by Live, the LED blackout repeats for about a second so Live's own repaint is covered quickly.

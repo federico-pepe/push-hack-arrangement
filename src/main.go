@@ -13,6 +13,7 @@ import (
 
 	"github.com/federico-pepe/ableton-push-hack/core/alsaseq"
 	"github.com/federico-pepe/ableton-push-hack/core/pmclient"
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
 )
 
 func main() {
@@ -71,17 +72,32 @@ func main() {
 		}
 		st.putSet(s)
 	} else {
+		var lastPlaying, lastBTA bool
 		go runLiveSource(st, func() {
 			if mode.isOn() {
 				t, playing := st.pos()
 				vc.follow(t, playing)
-				syncStateLEDs(st.state())
+				playing, bta := st.state()
+				if playing != lastPlaying || bta != lastBTA {
+					lastPlaying, lastBTA = playing, bta
+					syncStateLEDs(playing, bta)
+					burstLEDs(func() { syncStateLEDs(st.state()) })
+				}
 			}
 			mode.refresh()
 		}, stop)
 	}
 	chord := newChordDetector()
-	ctl := newControls(vc, st, mode.isOn, func() bool { return chord.isHeld(ccShift) }, mode.refresh, sendCmd)
+	ctl := newControls(vc, st, mode.isOn, func() bool { return chord.isHeld(ccShift) }, mode.refresh, sendCmd,
+		func(what string) {
+			if what == "play" {
+				// Show the new state at once, before Live confirms; Live's own LED
+				// update would otherwise flash another colour first.
+				playing, _ := st.state()
+				setLED(byte(push3.CCPlay), map[bool]byte{true: ledPlayWhite, false: ledPlayGreen}[playing])
+			}
+			burstLEDs(func() { syncStateLEDs(st.state()) })
+		})
 	h := &midiHandler{chord: chord, onCC: ctl.onCC,
 		onFire: func() {
 			mode.toggle()

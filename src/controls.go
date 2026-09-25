@@ -80,15 +80,16 @@ type controls struct {
 	shiftHeld func() bool
 	changed   func() // request a redraw
 	send      func(map[string]any)
+	feedback  func(what string) // after a command that makes Live repaint LEDs
 
 	mu      sync.Mutex
 	lastJog time.Time
 	hold    map[uint8]chan struct{} // D-pad buttons being held
 }
 
-func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(), send func(map[string]any)) *controls {
+func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(), send func(map[string]any), feedback func(string)) *controls {
 	return &controls{vc: vc, st: st, isOn: isOn, shiftHeld: shiftHeld, changed: changed, send: send,
-		hold: map[uint8]chan struct{}{}}
+		feedback: feedback, hold: map[uint8]chan struct{}{}}
 }
 
 // onCC handles one control-surface CC.
@@ -102,11 +103,13 @@ func (c *controls) onCC(cc, val uint8) {
 	case ccPlay:
 		if val > 0 {
 			c.send(map[string]any{"t": "play_toggle"})
+			c.feedback("play")
 		}
 	case ccSession:
 		// Shift + Session is the mode chord (handled before we get here).
 		if val > 0 && !c.shiftHeld() {
 			c.send(map[string]any{"t": "bta"})
+			c.feedback("bta")
 		}
 	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
 		c.dpad(cc, val)

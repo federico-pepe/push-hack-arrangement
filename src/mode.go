@@ -42,6 +42,7 @@ func (m *modeCtl) toggle() {
 	m.mu.Unlock()
 
 	if !on {
+		ledActive.Store(false)
 		m.mu.Lock()
 		if m.quit != nil {
 			close(m.quit)
@@ -53,6 +54,7 @@ func (m *modeCtl) toggle() {
 		return
 	}
 	resetLit()
+	ledActive.Store(true)
 	blackoutLEDs()
 	m.mu.Lock()
 	m.quit = make(chan struct{})
