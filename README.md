@@ -63,3 +63,15 @@ The hack talks to the Remote Script over `/tmp/push-hack-arrangement.sock`. Pyth
 
 Without a device, `make preview` writes `build/preview.png` from `testdata/p3.als` (not in git; use your own set).
 
+
+## Roadmap
+
+Not done yet:
+
+- Loop: toggle and set the loop. Locators: add and jump. Punch in/out. Record. Metronome.
+- Jog step buttons (finer and coarser) and the jog-click play-start marker from the reference script.
+- Editing: nudge, resize, split, duplicate, spacer. These are from the reference script and are outside v1.
+- Measure CPU with a large set during playback. Handle a very large set (send only the visible window).
+- Recover if the hack is killed while the mode is on (the intercept stays on until the next start).
+- Install through the catalog (needs a `catalog.json` entry and a new release). Then the boot service is created for you.
+- Docs: `docs/architecture.md`, `docs/protocol.md`.

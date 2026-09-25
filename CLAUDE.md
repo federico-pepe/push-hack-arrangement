@@ -16,3 +16,11 @@ repos (keyboard-visualizer, braids). Plan: `plans/`.
 ## Commands
 `make test vet preview build` ; `scripts/deploy.sh [host]` runs it on the Push.
 Release: bump `hack.json` version, tag `vX.Y.Z-alpha`, push tag (workflow builds + writes release.json).
+
+## Lessons from the device
+- The catalog boot service runs `<binary> -config <hack.json>`. The hack must accept `-config`.
+- Push buttons: Session (CC51) has a greyscale LED, so use palette 120 for "on". Play is RGB (white 120, green 126).
+- Live repaints LEDs after commands (Play, Back to Arrangement). `burstLEDs` repeats the blackout for about 1 s to hide it.
+- Set the LED colour of Play at once on a press; do not wait for Live's answer.
+- Deploy by hand: `scripts/deploy.sh` (needs a terminal). Without one: stop the process, `scp` the binary and `remote-script/*.py`, start it in the background. Restart Live after changing the Remote Script.
+- Docs: `docs/architecture.md`, `docs/protocol.md`. Plan and status: `plans/`.

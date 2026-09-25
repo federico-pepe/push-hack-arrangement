@@ -134,3 +134,12 @@ Writing style: code comments via `caveman` skill; docs via `simple-english`.
   playhead sync while playing, kill -9 the hack -> Push recovers (filter off).
 - `top` CPU of Live + hack during playback with 30+ tracks.
 - `git log --format='%an <%ae>'` shows only Federico P..
+
+
+## Status (2026-09-25)
+Done: milestones 1-4, and from milestone 5 the jog playhead, Play, and Back to Arrangement.
+Also done: Remote Script (read + 3 commands), dark LEDs, dimmed clips while Session overrides,
+release workflow, repo `federico-pepe/push-hack-arrangement` with release v0.0.1-alpha.
+Changed from the plan: the Unix socket carries commands both ways; the .als reader is only a
+preview/dev tool; Session button LED is greyscale (palette 120).
+Open: see README "Roadmap".
