@@ -68,6 +68,13 @@ func fill(img *image.NRGBA, x, y, w, h, minX, minY int, c color.NRGBA) {
 	}
 }
 
+// dimFactor: clip colours when Session clips override the arrangement.
+const dimFactor = 0.35
+
+func dim(c color.NRGBA) color.NRGBA {
+	return color.NRGBA{uint8(float64(c.R) * dimFactor), uint8(float64(c.G) * dimFactor), uint8(float64(c.B) * dimFactor), 255}
+}
+
 func luma(c color.NRGBA) int { return (int(c.R)*299 + int(c.G)*587 + int(c.B)*114) / 1000 }
 
 // renderArrangement draws the set. Text is ASCII only: the panel font has no other glyphs.
@@ -99,6 +106,9 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 				w = 1
 			}
 			col := rgb(c.Color)
+			if s.Overridden {
+				col = dim(col)
+			}
 			fill(img, x0, y0, w, h, g, top, col)
 			// clip name when there is room
 			if v.laneH >= namesMinLane && w >= 36 && y0 >= top && y0+h <= screenH {

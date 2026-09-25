@@ -36,4 +36,5 @@ type Set struct {
 	Playhead    float64 // saved insert marker (beats)
 	Length      float64 // end of last clip (beats)
 	BeatsPerBar float64 // 0 = 4
+	Overridden  bool    // Session clips override the arrangement (Back to Arrangement lit): draw dimmed
 }

@@ -37,6 +37,7 @@ func (st *store) get() (*Set, string, string) {
 	}
 	s := *st.set // slices shared, read-only
 	s.Playhead = st.playhead
+	s.Overridden = st.bta
 	return &s, "", ""
 }
 
@@ -71,6 +72,9 @@ func (st *store) putPos(t float64, playing, bta bool) {
 	defer st.mu.Unlock()
 	if time.Now().After(st.hold) {
 		st.playhead = t
+	}
+	if bta != st.bta {
+		log.Printf("back to arrangement available: %v", bta)
 	}
 	st.playing, st.bta = playing, bta
 }

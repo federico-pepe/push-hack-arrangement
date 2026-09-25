@@ -13,6 +13,7 @@
 - Milestone 4: horizontal zoom (Volume dial), vertical zoom (Tempo dial), scroll in time (jog wheel, D-pad left/right), scroll tracks (D-pad up/down). Track and clip names show when lanes are tall enough. The view follows the playhead while playing.
 - All LEDs go dark in the mode (every CC, so the scene buttons too). Play is green while playing.
 - Jog wheel now moves the playhead (grid by zoom, speed ramp). Shift + jog scrolls the view.
-- Play starts and stops Live. Session = Back to Arrangement (orange, palette 4, when available). Play is palette 126. New Remote Script commands: `set_time`, `play_toggle`, `bta`. **Restart Live after updating the script.**
+- Play starts and stops Live. Session = Back to Arrangement (bright white, palette 120, when available; the button has a greyscale LED). Play is palette 126. New Remote Script commands: `set_time`, `play_toggle`, `bta`. **Restart Live after updating the script.**
 - D-pad repeats while held. The view scrolls smoothly with the playhead during playback.
 - Accept `-config <hack.json>`: the catalog's boot service always passes it, and without it the hack would exit at boot. LEDs: Play = palette 126, Back to Arrangement = palette 4.
+- Clips are drawn dimmed while Session clips override the arrangement (Back to Arrangement available); crisp again after Back to Arrangement. Play is white (120) when stopped.

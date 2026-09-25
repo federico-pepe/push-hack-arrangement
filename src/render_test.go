@@ -47,3 +47,14 @@ func TestFitViewCoversSong(t *testing.T) {
 		t.Fatal("song end off screen")
 	}
 }
+
+func TestOverriddenDimsClips(t *testing.T) {
+	s := testSet()
+	v := fitView(s)
+	crisp := renderArrangement(s, v).NRGBAAt(v.x(2), rulerH+3)
+	s.Overridden = true
+	dimmed := renderArrangement(s, v).NRGBAAt(v.x(2), rulerH+3)
+	if crisp.R != 255 || dimmed.R >= 100 || dimmed.R == 0 {
+		t.Fatalf("crisp %v dimmed %v", crisp, dimmed)
+	}
+}

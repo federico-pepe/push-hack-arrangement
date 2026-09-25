@@ -47,14 +47,14 @@ func resetLit() {
 	ledMu.Unlock()
 }
 
-// syncStateLEDs: Play is green while playing; Session is orange when Back to Arrangement is available.
+// syncStateLEDs: Play is green while playing; Session is bright white when Back to Arrangement is available.
 func syncStateLEDs(playing, bta bool) {
-	play, session := byte(0), byte(0)
+	play, session := byte(ledPlayWhite), byte(0)
 	if playing {
 		play = ledPlayGreen
 	}
 	if bta {
-		session = ledSessionOrange
+		session = ledSessionWhite
 	}
 	setLED(byte(push3.CCPlay), play)
 	setLED(byte(push3.CCSession), session)
@@ -63,7 +63,8 @@ func syncStateLEDs(playing, bta bool) {
 // Palette indices chosen on the device.
 const (
 	ledPlayGreen     = 126 // Play while playing
-	ledSessionOrange = 4   // Back to Arrangement available
+	ledPlayWhite     = 120 // Play when stopped
+	ledSessionWhite  = 120 // Back to Arrangement available (this button has a greyscale LED)
 )
 
 const (

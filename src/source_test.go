@@ -57,3 +57,16 @@ func TestLocalTimeHoldsAgainstLatePos(t *testing.T) {
 		t.Fatal("bta must still update")
 	}
 }
+
+func TestStoreGetMarksOverridden(t *testing.T) {
+	st := &store{}
+	st.putSet(&Set{Length: 8})
+	st.putPos(1, false, true)
+	if s, _, _ := st.get(); !s.Overridden {
+		t.Fatal("bta must mark the set overridden")
+	}
+	st.putPos(1, false, false)
+	if s, _, _ := st.get(); s.Overridden {
+		t.Fatal("no bta: crisp")
+	}
+}
