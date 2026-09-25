@@ -17,6 +17,9 @@ import (
 
 func main() {
 	pm := flag.String("pm", "http://127.0.0.1:7701", "push-manager base URL")
+	// The catalog's boot service starts every hack as `<binary> -config <hack.json>`.
+	// This hack has no settings of its own, so the flag is accepted and ignored.
+	_ = flag.String("config", "", "path to hack.json (passed by the boot service; unused)")
 	setPath := flag.String("set", "", "dev: show this saved Live Set (.als) instead of the Remote Script data")
 	hz := flag.Int("hzoom", 0, "preview: horizontal zoom ticks")
 	vz := flag.Int("vzoom", 0, "preview: vertical zoom ticks")

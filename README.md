@@ -18,7 +18,7 @@ See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md)
 | Jog wheel | Move the playhead. The step follows the zoom (from 1/64 beat to 32 beats). Turn fast to move more |
 | Shift + jog wheel | Scroll the view in time |
 | Play | Start or stop Live. The button is green while playing |
-| Session | Back to Arrangement. The button glows amber when a track is off the arrangement |
+| Session | Back to Arrangement. The button glows orange when a track is off the arrangement |
 | Volume dial | Zoom in time (horizontal) |
 | Tempo dial | Zoom tracks (vertical). When lanes are tall enough, track and clip names appear |
 | D-pad up / down | Scroll tracks. Hold to repeat |

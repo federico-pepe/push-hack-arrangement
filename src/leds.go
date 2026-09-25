@@ -47,31 +47,24 @@ func resetLit() {
 	ledMu.Unlock()
 }
 
-// syncStateLEDs: Play is green while playing; Session glows when Back to Arrangement is available.
+// syncStateLEDs: Play is green while playing; Session is orange when Back to Arrangement is available.
 func syncStateLEDs(playing, bta bool) {
 	play, session := byte(0), byte(0)
 	if playing {
-		play = ledGreen
+		play = ledPlayGreen
 	}
 	if bta {
-		session = ledAmber
+		session = ledSessionOrange
 	}
 	setLED(byte(push3.CCPlay), play)
 	setLED(byte(push3.CCSession), session)
 }
 
-var (
-	ledGreen = paletteIdx("green")
-	ledAmber = paletteIdx("amber")
+// Palette indices chosen on the device.
+const (
+	ledPlayGreen     = 126 // Play while playing
+	ledSessionOrange = 4   // Back to Arrangement available
 )
-
-func paletteIdx(name string) byte {
-	idx, ok := push3.ColorByName(name)
-	if !ok {
-		panic("unknown push3 colour " + name)
-	}
-	return idx
-}
 
 const (
 	padNoteMin = 36
