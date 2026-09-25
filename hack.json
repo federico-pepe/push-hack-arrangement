@@ -2,7 +2,7 @@
   "id": "arrangement",
   "name": "Arrangement",
   "description": "Shows the open Live Set's arrangement on the Push 3 screen, with zoom. Toggle with Shift+Session (uses MIDI intercept). Needs push-manager + push-display, and the PushHackArrangement Remote Script (installed with this hack) enabled once in Live.",
-  "version": "0.0.2-alpha",
+  "version": "0.0.3-alpha",
   "author": "federico-pepe",
   "binary": "arrangement",
   "enabled": true,

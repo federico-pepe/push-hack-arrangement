@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.3-alpha] - 2026-09-25
+
 - Volume knob now scrolls the view in time (this replaces Shift + jog wheel, which is gone; the jog wheel always moves the playhead).
 - Tempo knob zooms. Pressing it (CC15) switches between time zoom and track zoom. A short message ("ZOOM: TIME" or "ZOOM: TRACKS") shows for about a second.
 
@@ -27,3 +29,4 @@
 - Supervisor: the boot service starts a small parent process that runs the hack as a child and restarts it if it dies. If the child dies while Arrangement Mode is on (crash, kill -9), the parent releases the display and MIDI intercept, so Push is never left dead. Tested on the device.
 - Remote Script: on big sets it waits longer between snapshots, so building them never uses more than about 5% of Live's time.
 - `-bench <seconds>` (with `-set`): measure CPU on the device. Result with a 40-track, 342-clip set at about 7.6 frames per second: hack 5.7% of one core, push-manager 4%.
+- Docs: `docs/touch-layer.md`, the design for a temporary bar shown when you touch a knob or the jog wheel (not built yet).
