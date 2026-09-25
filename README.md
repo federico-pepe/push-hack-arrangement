@@ -16,11 +16,10 @@ See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md)
 |---|---|
 | Shift + Session | Turn the mode on or off |
 | Jog wheel | Move the playhead. The step follows the zoom (from 1/64 beat to 32 beats). Turn fast to move more |
-| Shift + jog wheel | Scroll the view in time |
 | Play | Start or stop Live. The button is green while playing |
 | Session | Back to Arrangement. The button lights bright white when Session clips override the arrangement. The clips on screen are dimmed until you press it |
-| Volume dial | Zoom in time (horizontal) |
-| Tempo dial | Zoom tracks (vertical). When lanes are tall enough, track and clip names appear |
+| Volume knob | Scroll the view in time |
+| Tempo knob | Zoom. It zooms in time at first. Press the knob to switch between time zoom and track zoom. A short message shows the mode. When lanes are tall enough, track and clip names appear |
 | D-pad up / down | Scroll tracks. Hold to repeat |
 | D-pad left / right | Scroll a quarter screen in time. Hold to repeat |
 

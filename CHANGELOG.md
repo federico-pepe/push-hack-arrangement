@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Volume knob now scrolls the view in time (this replaces Shift + jog wheel, which is gone; the jog wheel always moves the playhead).
+- Tempo knob zooms. Pressing it (CC15) switches between time zoom and track zoom. A short message ("ZOOM: TIME" or "ZOOM: TRACKS") shows for about a second.
+
 ## [0.0.2-alpha] - 2026-09-25
 
 - Project created. Plan added.

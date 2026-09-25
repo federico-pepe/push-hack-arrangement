@@ -3,11 +3,11 @@ package main
 // Control handling while Arrangement Mode is on.
 //
 //   Jog wheel        move the playhead (grid step by zoom, speed ramp)
-//   Shift + jog      scroll the view in time
+//   Volume knob      scroll the view in time
+//   Tempo knob       zoom; pressing it switches between time zoom and track zoom
 //   Play             start / stop Live
 //   Session          Back to Arrangement (Shift + Session = leave the mode)
 //   D-pad            scroll; hold to repeat
-//   Volume / Tempo   zoom (view.go)
 
 import (
 	"math"
@@ -19,6 +19,8 @@ const (
 	ccPlay = 85
 
 	jogTargetPx = 10 // wanted screen distance of one jog tick, before the speed ramp
+
+	toastFor = 1200 * time.Millisecond
 
 	repeatDelay     = 450 * time.Millisecond // hold time before a D-pad button repeats
 	repeatEvery     = 70 * time.Millisecond
@@ -85,6 +87,7 @@ type controls struct {
 	mu      sync.Mutex
 	lastJog time.Time
 	hold    map[uint8]chan struct{} // D-pad buttons being held
+	zoomV   bool                    // Tempo knob zooms tracks (true) or time (false)
 }
 
 func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(), send func(map[string]any), feedback func(string)) *controls {
@@ -100,6 +103,23 @@ func (c *controls) onCC(cc, val uint8) {
 	switch cc {
 	case ccJog:
 		c.jog(decodeRel(val))
+	case ccVolumeDial:
+		c.vc.scrollT(decodeRel(val))
+		c.changed()
+	case ccTempoDial:
+		c.mu.Lock()
+		vertical := c.zoomV
+		c.mu.Unlock()
+		if vertical {
+			c.vc.zoomV(decodeRel(val))
+		} else {
+			c.vc.zoomH(decodeRel(val))
+		}
+		c.changed()
+	case ccTempoPress:
+		if val > 0 {
+			c.toggleZoom()
+		}
 	case ccPlay:
 		if val > 0 {
 			c.send(map[string]any{"t": "play_toggle"})
@@ -124,11 +144,6 @@ func (c *controls) jog(delta int) {
 	if delta == 0 {
 		return
 	}
-	if c.shiftHeld() {
-		c.vc.scrollT(delta)
-		c.changed()
-		return
-	}
 	s, _, _ := c.st.get()
 	if s == nil {
 		return
@@ -147,6 +162,20 @@ func (c *controls) jog(delta int) {
 	c.send(map[string]any{"t": "set_time", "v": nt})
 	c.vc.reveal(nt)
 	c.changed()
+}
+
+// toggleZoom switches the Tempo knob between time zoom and track zoom and says so on screen.
+func (c *controls) toggleZoom() {
+	c.mu.Lock()
+	c.zoomV = !c.zoomV
+	msg := "ZOOM: TIME"
+	if c.zoomV {
+		msg = "ZOOM: TRACKS"
+	}
+	c.mu.Unlock()
+	c.vc.setToast(msg, toastFor)
+	c.changed()
+	time.AfterFunc(toastFor+50*time.Millisecond, c.changed) // redraw once it expires
 }
 
 // dpad: act on press, then repeat while held.

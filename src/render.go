@@ -38,6 +38,7 @@ type viewport struct {
 	laneH  float64 // pixels per track lane
 	first  float64 // first visible track (fractional)
 	gutter int     // width of the track-name column (0 = none)
+	toast  string  // short message to draw, "" = none
 }
 
 // fitView shows the whole song, every track.
@@ -156,7 +157,19 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		fill(img, x, 0, 2, screenH, v.gutter, 0, colPlay)
 	}
 
+	if v.toast != "" {
+		drawToast(img, v.toast)
+	}
 	return img
+}
+
+// drawToast: a short message box, bottom left.
+func drawToast(img *image.NRGBA, msg string) {
+	w := text.Width(msg) + 16
+	x, y := 8, screenH-24
+	gfx.FillRect(img, x-1, y-1, w+2, 20, colPlay)
+	gfx.FillRect(img, x, y, w, 18, colBG)
+	text.Draw(img, x+8, y+13, msg, colPlay)
 }
 
 // drawRuler: bar numbers (labels >= 48 px apart), beat ticks when zoomed in.

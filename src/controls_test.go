@@ -91,17 +91,63 @@ func TestJogMovesPlayheadAndSendsSetTime(t *testing.T) {
 	}
 }
 
-func TestShiftJogScrollsViewNotPlayhead(t *testing.T) {
+func TestShiftDoesNotChangeJog(t *testing.T) {
 	r := newRig()
 	r.shift = true
+	r.c.onCC(ccJog, 1)
+	if got := r.sent(); len(got) != 1 || got[0]["t"] != "set_time" {
+		t.Fatalf("jog with Shift still moves the playhead: %v", got)
+	}
+}
+
+func TestVolumeKnobScrollsTime(t *testing.T) {
+	r := newRig()
 	r.c.vc.zoomH(30)
 	before := r.c.vc.viewport(viewSet()).x0
-	r.c.onCC(ccJog, 3)
-	if len(r.sent()) != 0 {
-		t.Fatal("shift+jog must not send set_time")
-	}
+	r.c.onCC(ccVolumeDial, 3)
 	if r.c.vc.viewport(viewSet()).x0 <= before {
-		t.Fatal("view did not scroll")
+		t.Fatal("volume knob must scroll forward")
+	}
+	if len(r.sent()) != 0 {
+		t.Fatal("scrolling must not touch Live")
+	}
+}
+
+func TestTempoKnobZoomsAndClickToggles(t *testing.T) {
+	r := newRig()
+	s := viewSet()
+	ppb0, lane0 := r.c.vc.viewport(s).ppb, r.c.vc.viewport(s).laneH
+	r.c.onCC(ccTempoDial, 5) // default: time zoom
+	v := r.c.vc.viewport(s)
+	if v.ppb <= ppb0 || v.laneH != lane0 {
+		t.Fatalf("expected time zoom only: %+v", v)
+	}
+	r.c.onCC(ccTempoPress, 127)
+	r.c.onCC(ccTempoPress, 0) // release ignored
+	if v := r.c.vc.viewport(s); v.toast != "ZOOM: TRACKS" {
+		t.Fatalf("toast %q", v.toast)
+	}
+	ppb1 := r.c.vc.viewport(s).ppb
+	r.c.onCC(ccTempoDial, 5)
+	v = r.c.vc.viewport(s)
+	if v.laneH <= lane0 || v.ppb != ppb1 {
+		t.Fatalf("expected track zoom only: %+v", v)
+	}
+	r.c.onCC(ccTempoPress, 127)
+	if r.c.vc.viewport(s).toast != "ZOOM: TIME" {
+		t.Fatal("toggle back")
+	}
+}
+
+func TestToastExpires(t *testing.T) {
+	vc, s := newTestView()
+	vc.setToast("hi", 30*time.Millisecond)
+	if vc.viewport(s).toast != "hi" {
+		t.Fatal("toast must show")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if vc.viewport(s).toast != "" {
+		t.Fatal("toast must expire")
 	}
 }
 

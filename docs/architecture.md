@@ -24,7 +24,7 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 | `midi.go` | Own ALSA port, subscribed to Push 3 (client 16, port 0). Reads every button and dial |
 | `chord.go` | Shift (CC49) + Session (CC51) chord, 500 ms debounce |
 | `mode.go` | Arrangement Mode on/off. ON = display takeover + MIDI intercept. OFF = give both back at once |
-| `controls.go` | Jog (playhead), Play, Session (Back to Arrangement), D-pad with repeat |
+| `controls.go` | Jog (playhead), Volume knob (scroll), Tempo knob (zoom, click to switch), Play, Session (Back to Arrangement), D-pad with repeat |
 | `view.go` | Zoom and scroll state, playhead follow. All values are clamped for the current set |
 | `render.go` | Draws the 960x160 image: ruler, lanes, clips, names, locators, loop, playhead |
 | `source.go` | Connection to the Remote Script, the current set, commands to Live |

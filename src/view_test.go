@@ -113,8 +113,8 @@ func TestFollow(t *testing.T) {
 
 func TestHandleCC(t *testing.T) {
 	vc, _ := newTestView()
-	if !vc.handleCC(ccVolumeDial, 1) || !vc.handleCC(ccTempoDial, 127) {
-		t.Fatal("dials must be handled")
+	if vc.handleCC(ccVolumeDial, 1) || vc.handleCC(ccTempoDial, 127) {
+		t.Fatal("dials belong to controls, not the view")
 	}
 	if vc.handleCC(ccDPadUp, 0) {
 		t.Fatal("dpad release must be ignored")

@@ -3,9 +3,8 @@ package main
 // View state: zoom and scroll. All input handlers land here.
 //
 // View controls (while Arrangement Mode is on, MIDI intercept hides them from Live):
-//   Volume dial (CC79)  horizontal zoom     Tempo dial (CC14)  vertical zoom
 //   D-pad up/down       scroll tracks       D-pad left/right   scroll a quarter screen
-// The jog wheel moves the playhead: see controls.go.
+// Dials, jog wheel, Play and Session are handled in controls.go.
 
 import (
 	"math"
@@ -15,6 +14,7 @@ import (
 
 const (
 	ccTempoDial  = 14
+	ccTempoPress = 15 // pressing the Tempo knob in
 	ccVolumeDial = 79
 	ccJog        = 70
 	ccDPadLeft   = 44
@@ -41,6 +41,9 @@ type viewCtl struct {
 	laneH    float64 // pixels per track lane
 	first    float64 // first visible track (fractional)
 	lastUser time.Time
+
+	toast      string // short message drawn on the view
+	toastUntil time.Time
 }
 
 func newViewCtl(get func() *Set) *viewCtl { return &viewCtl{get: get} }
@@ -94,7 +97,11 @@ func (c *viewCtl) viewport(s *Set) viewport {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.clamp(s)
-	return viewport{x0: c.x0, ppb: c.ppb, laneH: c.laneH, first: c.first, gutter: c.gutter()}
+	vp := viewport{x0: c.x0, ppb: c.ppb, laneH: c.laneH, first: c.first, gutter: c.gutter()}
+	if time.Now().Before(c.toastUntil) {
+		vp.toast = c.toast
+	}
+	return vp
 }
 
 func (c *viewCtl) zoomH(steps int) {
@@ -210,10 +217,6 @@ func decodeRel(v uint8) int {
 // handleCC applies one control-surface CC. Returns true if the view changed.
 func (c *viewCtl) handleCC(cc, val uint8) bool {
 	switch cc {
-	case ccVolumeDial:
-		c.zoomH(decodeRel(val))
-	case ccTempoDial:
-		c.zoomV(decodeRel(val))
 	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
 		if val == 0 { // act on press only
 			return false
@@ -232,4 +235,11 @@ func (c *viewCtl) handleCC(cc, val uint8) bool {
 		return false
 	}
 	return true
+}
+
+// setToast shows a short message on the view for d.
+func (c *viewCtl) setToast(msg string, d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.toast, c.toastUntil = msg, time.Now().Add(d)
 }

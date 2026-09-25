@@ -58,3 +58,21 @@ func TestOverriddenDimsClips(t *testing.T) {
 		t.Fatalf("crisp %v dimmed %v", crisp, dimmed)
 	}
 }
+
+func TestToastDraws(t *testing.T) {
+	s := testSet()
+	v := fitView(s)
+	plain := renderArrangement(s, v)
+	v.toast = "ZOOM: TIME"
+	withToast := renderArrangement(s, v)
+	same := true
+	for i := range plain.Pix {
+		if plain.Pix[i] != withToast.Pix[i] {
+			same = false
+			break
+		}
+	}
+	if same {
+		t.Fatal("toast must change the image")
+	}
+}
