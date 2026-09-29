@@ -152,7 +152,10 @@ func main() {
 		}, stop)
 	}
 	chord := newChordDetector()
-	ctl := newControls(vc, st, mode.isOn, func() bool { return chord.isHeld(ccShift) }, mode.refresh, sendCmd,
+	ctl := newControls(vc, st, mode.isOn,
+		func() bool { return chord.isHeld(ccShift) },
+		func() bool { return chord.isHeld(ccDelete) },
+		mode.refresh, sendCmd,
 		func(what string, on bool) {
 			switch what {
 			case "play":

@@ -26,7 +26,7 @@ full colour once you press Back to Arrangement.
 | Shift + Session | Turn the mode on or off |
 | Jog wheel | Move a scrub marker to look around, without touching Live's actual playback (no audible jump) |
 | Shift + jog wheel | Really seek: moves Live's playhead for real, same as before (audible if playing) |
-| Jog wheel press | Set the play-start anchor at the current position, silently (nothing jumps). Shift + press clears it |
+| Jog wheel press | Set the play-start anchor at the current position, silently (nothing jumps). Pressing again at that SAME spot clears it instead -- no Shift needed |
 | Play | Start or stop Live. Starting jumps to the anchor first, if one is set. The button is white when stopped, green while playing |
 | Session | Back to Arrangement. Lights bright white when Session clips override the arrangement (the button has a greyscale LED) |
 | Page < / Page > | Jump to the previous / next locator (a real seek). The one you land on turns white on screen. Both buttons are always lit white |
@@ -37,6 +37,7 @@ full colour once you press Back to Arrangement.
 | Encoder 2 (touch-capable) | Loop length, one bar per detent (Shift = a precise 1/16 beat step). Same resistance as Encoder 1. Touching it shows the exact length the same way |
 | Volume knob | Scroll the view in time |
 | Tempo knob | Zoom. It zooms in time at first, always keeping the playhead (or the scrub marker, if one is active) centred on screen. Press the knob to switch between time zoom and track zoom. A short message shows the mode. When lanes are tall enough, track and clip names appear |
+| Delete + Tempo press | Reset the zoom: shows the whole song, every track, from scratch |
 | D-pad up / down | Scroll tracks. Hold to repeat. Lit white only while that direction has more to scroll |
 | D-pad left / right | Scroll a quarter screen in time. Hold to repeat. Lit white only while that direction has more to scroll |
 

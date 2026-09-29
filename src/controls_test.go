@@ -59,6 +59,7 @@ type rig struct {
 	fb      []fbCall
 	on      bool
 	shift   bool
+	delete  bool
 	redraws int
 }
 
@@ -71,6 +72,7 @@ func newRig() *rig {
 	r.c = newControls(vc, r.st,
 		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.on },
 		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.shift },
+		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.delete },
 		func() { r.mu.Lock(); r.redraws++; r.mu.Unlock() },
 		func(m map[string]any) { r.mu.Lock(); r.cmds = append(r.cmds, m); r.mu.Unlock() },
 		func(w string, on bool) { r.mu.Lock(); r.fb = append(r.fb, fbCall{w, on}); r.mu.Unlock() })
@@ -168,13 +170,28 @@ func TestJogPressAnchorsAtCursorWhenOneIsActive(t *testing.T) {
 	}
 }
 
-func TestShiftJogPressClearsAnchor(t *testing.T) {
+func TestJogPressAtSameSpotClearsAnchor(t *testing.T) {
 	r := newRig()
-	r.st.setAnchor(4)
-	r.shift = true
-	r.c.onCC(ccJogPress, 127)
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccJogPress, 127) // sets it
+	if _, ok := r.st.getAnchor(); !ok {
+		t.Fatal("first press must set the anchor")
+	}
+	r.c.onCC(ccJogPress, 127) // same spot -> clears it, no Shift needed
 	if _, ok := r.st.getAnchor(); ok {
-		t.Fatal("shift+press must clear the anchor")
+		t.Fatal("second press at the same spot must clear the anchor")
+	}
+}
+
+func TestJogPressAtDifferentSpotMovesAnchorInstead(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccJogPress, 127) // anchor at 8
+	r.st.setLocalTime(20)     // moved elsewhere (a real seek)
+	r.c.onCC(ccJogPress, 127) // different spot -> moves the anchor, does not clear it
+	tt, ok := r.st.getAnchor()
+	if !ok || tt != 20 {
+		t.Fatalf("anchor should move to 20, got %v %v", tt, ok)
 	}
 }
 
@@ -247,6 +264,39 @@ func TestTempoKnobZoomsAndClickToggles(t *testing.T) {
 	r.c.onCC(ccTempoPress, 127)
 	if tl := r.c.vc.viewport(s).toastLines; len(tl) != 1 || tl[0] != "ZOOM: TIME" {
 		t.Fatal("toggle back")
+	}
+}
+
+func TestDeletePlusTempoPressResetsZoomToFit(t *testing.T) {
+	r := newRig()
+	s := viewSet()
+	fitPpb, fitLaneH := fitPPB(s), fitLane(s)
+	r.c.vc.zoomH(30)
+	r.c.vc.zoomV(30)
+	r.c.vc.scrollT(1000)
+	v := r.c.vc.viewport(s)
+	if v.ppb == fitPpb && v.laneH == fitLaneH && v.x0 == 0 {
+		t.Fatal("test setup should have actually zoomed/scrolled away from fit")
+	}
+
+	r.delete = true
+	r.c.onCC(ccTempoPress, 127)
+	v = r.c.vc.viewport(s)
+	if v.ppb != fitPpb || v.laneH != fitLaneH || v.x0 != 0 || v.first != 0 {
+		t.Fatalf("Delete+Tempo must reset to fit: %+v (want ppb=%v laneH=%v)", v, fitPpb, fitLaneH)
+	}
+	if len(v.toastLines) != 1 || v.toastLines[0] != "ZOOM: FIT" {
+		t.Fatalf("toast %v", v.toastLines)
+	}
+}
+
+func TestTempoPressWithoutDeleteStillTogglesZoomMode(t *testing.T) {
+	r := newRig()
+	s := viewSet()
+	r.delete = false
+	r.c.onCC(ccTempoPress, 127)
+	if v := r.c.vc.viewport(s); len(v.toastLines) != 1 || v.toastLines[0] != "ZOOM: TRACKS" {
+		t.Fatalf("plain Tempo press must still toggle the zoom mode: %v", v.toastLines)
 	}
 }
 

@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 - Loop start/length knobs (Encoder 1/2) have friction: a few raw encoder ticks now accumulate per knob before a step actually moves the loop, so a light touch doesn't send it flying. Both knobs get the same resistance, tracked separately so turning one doesn't eat into the other's count (`controls.go`'s `loopEncoderTicksPerStep`).
+- Jog wheel press now toggles the play-start anchor: pressing again at the SAME position clears it, instead of needing Shift + press.
+- Delete held + Tempo knob press resets the zoom to fit: shows the whole song, every track, from scratch.
 
 ## [0.0.4-alpha] - 2026-09-29
 

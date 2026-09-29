@@ -231,6 +231,24 @@ func (c *viewCtl) scrollTracks(dir int) {
 	c.clamp(s)
 }
 
+// resetToFit: Delete + Tempo press. Shows the whole song, every track, exactly
+// like the view starts out.
+func (c *viewCtl) resetToFit() {
+	s := c.get()
+	if s == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer c.notifyAvailability(s)
+	c.ppb = fitPPB(s)
+	c.laneH = fitLane(s)
+	c.x0 = 0
+	c.first = 0
+	c.clamp(s)
+	c.lastUser = time.Now()
+}
+
 // follow scrolls smoothly so the playhead stays at 25% of the clip area while
 // playing (unless the user just moved the view by hand).
 func (c *viewCtl) follow(t float64, playing bool) {

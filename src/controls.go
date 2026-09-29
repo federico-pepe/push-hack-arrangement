@@ -6,10 +6,11 @@ package main
 //                    untouched (no audible jump). See jog()'s doc.
 //   Shift + jog      the old way: really seek Live (current_song_time moves,
 //                    audible if playing)
-//   Jog wheel press  set the play-start anchor at the cursor/playhead (Shift +
-//                    press clears it)
+//   Jog wheel press  set the play-start anchor at the cursor/playhead; pressing
+//                    again at that SAME spot clears it instead
 //   Volume knob      scroll the view in time
 //   Tempo knob       zoom; pressing it switches between time zoom and track zoom
+//   Delete + Tempo press   reset the zoom to fit the whole song, every track
 //   Play             start / stop Live -- from the anchor, if one is set
 //   Session          Back to Arrangement (Shift + Session is the mode chord)
 //   Page < / >       jump to the previous / next locator (a real seek)
@@ -33,6 +34,7 @@ import (
 const (
 	ccPlay      = push3.CCPlay
 	ccJogPress  = push3.CCJogPress   // jog wheel click: set/clear the play-start anchor
+	ccDelete    = push3.CCDelete     // held + Tempo press: reset zoom to fit
 	ccPageLeft  = push3.CCPageLeft   // previous locator
 	ccPageRight = push3.CCPageRight  // next locator
 	ccTopLoop   = push3.CCScreenTop1 // top button 1: Loop on/off
@@ -108,13 +110,14 @@ func jogMultiplier(gap time.Duration) int {
 }
 
 type controls struct {
-	vc        *viewCtl
-	st        *store
-	isOn      func() bool
-	shiftHeld func() bool
-	changed   func() // request a redraw
-	send      func(map[string]any)
-	feedback  func(what string, on bool) // after a command that makes Live repaint LEDs
+	vc         *viewCtl
+	st         *store
+	isOn       func() bool
+	shiftHeld  func() bool
+	deleteHeld func() bool
+	changed    func() // request a redraw
+	send       func(map[string]any)
+	feedback   func(what string, on bool) // after a command that makes Live repaint LEDs
 
 	mu      sync.Mutex
 	lastJog time.Time
@@ -129,10 +132,10 @@ type controls struct {
 	loopStartAccum, loopLengthAccum int
 }
 
-func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(),
+func newControls(vc *viewCtl, st *store, isOn, shiftHeld, deleteHeld func() bool, changed func(),
 	send func(map[string]any), feedback func(string, bool)) *controls {
-	return &controls{vc: vc, st: st, isOn: isOn, shiftHeld: shiftHeld, changed: changed, send: send,
-		feedback: feedback, hold: map[uint8]chan struct{}{}}
+	return &controls{vc: vc, st: st, isOn: isOn, shiftHeld: shiftHeld, deleteHeld: deleteHeld,
+		changed: changed, send: send, feedback: feedback, hold: map[uint8]chan struct{}{}}
 }
 
 // onCC handles one control-surface CC.
@@ -162,7 +165,11 @@ func (c *controls) onCC(cc, val uint8) {
 		c.changed()
 	case ccTempoPress:
 		if val > 0 {
-			c.toggleZoom()
+			if c.deleteHeld() {
+				c.resetZoom()
+			} else {
+				c.toggleZoom()
+			}
 		}
 	case ccPlay:
 		if val > 0 {
@@ -256,14 +263,15 @@ func (c *controls) cursorOrPlayhead() float64 {
 	return t
 }
 
-// jogPress: set the play-start anchor at the cursor/playhead. Shift + press
-// clears it, so Play starts from wherever the real playhead is instead.
+// jogPress: set the play-start anchor at the cursor/playhead. Pressing again at
+// that SAME spot clears it instead of stacking a duplicate -- no Shift needed.
 func (c *controls) jogPress() {
-	if c.shiftHeld() {
+	t := c.cursorOrPlayhead()
+	if at, ok := c.st.getAnchor(); ok && sameBeat(at, t) {
 		c.st.clearAnchor()
 		c.vc.setToast("ANCHOR CLEARED", toastFor)
 	} else {
-		c.st.setAnchor(c.cursorOrPlayhead())
+		c.st.setAnchor(t)
 		c.vc.setToast("ANCHOR SET", toastFor)
 	}
 	c.changed()
@@ -409,6 +417,14 @@ func (c *controls) toggleZoom() {
 	c.vc.setToast(msg, toastFor)
 	c.changed()
 	time.AfterFunc(toastFor+50*time.Millisecond, c.changed) // redraw once it expires
+}
+
+// resetZoom: Delete + Tempo press. Shows the whole song, every track, from scratch.
+func (c *controls) resetZoom() {
+	c.vc.resetToFit()
+	c.vc.setToast("ZOOM: FIT", toastFor)
+	c.changed()
+	time.AfterFunc(toastFor+50*time.Millisecond, c.changed)
 }
 
 // dpad: act on press, then repeat while held.
