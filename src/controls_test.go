@@ -303,10 +303,27 @@ func TestLoopAndPunchToggles(t *testing.T) {
 	}
 }
 
+func TestAdjustLoopHasFrictionSubStepTicksDoNothing(t *testing.T) {
+	r := newRig()
+	r.st.putPos(0, false, false, false, 8, 16, false, false)
+	for i := 0; i < loopEncoderTicksPerStep-1; i++ {
+		r.c.onCC(ccEncoder1, 1)
+	}
+	if got := r.sent(); len(got) != 0 {
+		t.Fatalf("fewer than a full step's worth of ticks must do nothing: %v", got)
+	}
+	_, _, _, start, _ := r.st.transport()
+	if start != 8 {
+		t.Fatalf("start must not have moved yet: %v", start)
+	}
+}
+
 func TestAdjustLoopStartAndLength(t *testing.T) {
 	r := newRig()
 	r.st.putPos(0, false, false, false, 8, 16, false, false)
-	r.c.onCC(ccEncoder1, 1) // +1 bar (bpb=4 in viewSet)
+	for i := 0; i < loopEncoderTicksPerStep; i++ {
+		r.c.onCC(ccEncoder1, 1) // +1 bar total (bpb=4 in viewSet), once the friction threshold is crossed
+	}
 	got := r.sent()
 	if len(got) != 1 || got[0]["t"] != "set_loop" || got[0]["start"] != 12.0 || got[0]["length"] != 16.0 {
 		t.Fatalf("start bump: %v", got)
@@ -315,7 +332,9 @@ func TestAdjustLoopStartAndLength(t *testing.T) {
 	if start != 12 {
 		t.Fatalf("local start %v", start)
 	}
-	r.c.onCC(ccEncoder2, 127) // decodeRel(127) == -1
+	for i := 0; i < loopEncoderTicksPerStep; i++ {
+		r.c.onCC(ccEncoder2, 127) // decodeRel(127) == -1
+	}
 	_, _, _, _, length := r.st.transport()
 	if length != 12 { // 16 - 4
 		t.Fatalf("length after -1 bar: %v", length)
@@ -326,7 +345,9 @@ func TestAdjustLoopShiftIsFinerNotCoarser(t *testing.T) {
 	r := newRig()
 	r.st.putPos(0, false, false, false, 8, 16, false, false)
 	r.shift = true
-	r.c.onCC(ccEncoder1, 1)
+	for i := 0; i < loopEncoderTicksPerStep; i++ {
+		r.c.onCC(ccEncoder1, 1)
+	}
 	_, _, _, start, _ := r.st.transport()
 	if start != 8.25 { // a precise 1/16 beat step, not a whole bar
 		t.Fatalf("shift step wrong: start=%v", start)

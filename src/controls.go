@@ -51,6 +51,12 @@ const (
 
 	loopStepBars      = 1.0  // bars per encoder detent
 	loopStepFineBeats = 0.25 // Shift: a precise 1/16 beat step, not a coarser one
+
+	// loopEncoderTicksPerStep: raw encoder ticks needed before one step actually
+	// moves the loop. Push's encoders are sensitive -- a light touch already
+	// sends a tick or more -- so without this the loop knobs feel twitchy.
+	// Raise it for more resistance, lower it for a lighter touch.
+	loopEncoderTicksPerStep = 3
 )
 
 // jogGrid: musical steps, in beats. 1/64 .. 32 beats.
@@ -114,6 +120,13 @@ type controls struct {
 	lastJog time.Time
 	hold    map[uint8]chan struct{} // D-pad buttons being held
 	zoomV   bool                    // Tempo knob zooms tracks (true) or time (false)
+
+	// Loop encoders add friction (core has no ready-made helper for this --
+	// checked -- so it's the same tick-accumulator idea the reference
+	// Push3ArrangementMode.py script uses for its own encoders): raw ticks pile
+	// up here and only every loopEncoderTicksPerStep-th one actually moves the
+	// loop, so a light touch on the knob doesn't send it flying.
+	loopStartAccum, loopLengthAccum int
 }
 
 func newControls(vc *viewCtl, st *store, isOn, shiftHeld func() bool, changed func(),
@@ -352,6 +365,19 @@ func (c *controls) adjustLoop(isStart bool, delta int) {
 	if delta == 0 {
 		return
 	}
+	c.mu.Lock()
+	accum := &c.loopStartAccum
+	if !isStart {
+		accum = &c.loopLengthAccum
+	}
+	*accum += delta
+	steps := *accum / loopEncoderTicksPerStep
+	*accum -= steps * loopEncoderTicksPerStep
+	c.mu.Unlock()
+	if steps == 0 {
+		return // friction absorbed this tick -- not enough yet for a whole step
+	}
+
 	s, _, _ := c.st.get()
 	if s == nil {
 		return
@@ -362,9 +388,9 @@ func (c *controls) adjustLoop(isStart bool, delta int) {
 	}
 	_, _, _, start, length := c.st.transport()
 	if isStart {
-		start = math.Max(0, start+float64(delta)*step)
+		start = math.Max(0, start+float64(steps)*step)
 	} else {
-		length = math.Max(step, length+float64(delta)*step)
+		length = math.Max(step, length+float64(steps)*step)
 	}
 	c.st.setLocalLoop(start, length)
 	c.send(map[string]any{"t": "set_loop", "start": start, "length": length})

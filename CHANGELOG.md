@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Loop start/length knobs (Encoder 1/2) have friction: a few raw encoder ticks now accumulate per knob before a step actually moves the loop, so a light touch doesn't send it flying. Both knobs get the same resistance, tracked separately so turning one doesn't eat into the other's count (`controls.go`'s `loopEncoderTicksPerStep`).
+
 ## [0.0.4-alpha] - 2026-09-29
 
 ### Transport and locators
