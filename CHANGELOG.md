@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.6-alpha] - 2026-09-29
+
 ### Fixed
 - The on-screen playhead would sit frozen while playing if you turned the loop start/length knobs -- it only caught up once you stopped touching them. The playhead and the loop start/length each used to share one "ignore Live's report for a moment" timer (`store`'s `hold`), so a loop-knob edit kept re-arming the same timer the playhead was held by. They are now two independent timers (`hold` for the playhead, `loopHold` for the loop) -- see `source.go`, `source_test.go`'s `TestAdjustingLoopDoesNotFreezeThePlayhead`.
 
