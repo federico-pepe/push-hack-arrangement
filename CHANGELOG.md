@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.4-alpha] - 2026-09-29
+
 ### Transport and locators
 - Jog wheel press sets a play-start anchor at the current position (drawn as a small green triangle); Shift + press clears it. Pressing Play jumps there first if one is set.
 - Page < / Page > jump to the previous/next locator (a real seek). The locator you land on draws white instead of sky blue. Both buttons are always lit white.
