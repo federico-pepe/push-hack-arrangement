@@ -81,6 +81,41 @@ func TestLocalLoopHoldsAgainstLatePos(t *testing.T) {
 	}
 }
 
+// Regression: hold and loopHold used to be the same field, so adjusting the
+// loop start/length (a knob turn keeps re-arming its hold) also suppressed
+// every Live-reported playhead update -- the on-screen playhead would sit
+// frozen for as long as you kept turning the knob, even while the song was
+// playing. They must be independent.
+func TestAdjustingLoopDoesNotFreezeThePlayhead(t *testing.T) {
+	st := &store{}
+	st.putSet(&Set{Length: 8})
+	st.setLocalLoop(16, 32) // arms loopHold; must NOT touch the playhead's hold
+	st.putPos(42, true, false, true, 0, 4, false, false)
+	if tt, playing := st.pos(); tt != 42 || !playing {
+		t.Fatalf("playhead must keep advancing while the loop is held: t=%v playing=%v", tt, playing)
+	}
+	_, _, _, start, length := st.transport()
+	if start != 16 || length != 32 {
+		t.Fatalf("loop should still be held: start=%v length=%v", start, length)
+	}
+}
+
+// The mirror image: jogging/seeking must not freeze the loop's on-screen
+// start/length either.
+func TestSeekingDoesNotFreezeTheLoop(t *testing.T) {
+	st := &store{}
+	st.putSet(&Set{Length: 8})
+	st.setLocalTime(6) // arms hold; must NOT touch the loop's hold
+	st.putPos(1, false, false, true, 99, 111, false, false)
+	_, _, _, start, length := st.transport()
+	if start != 99 || length != 111 {
+		t.Fatalf("loop must keep updating while the time is held: start=%v length=%v", start, length)
+	}
+	if tt, _ := st.pos(); tt != 6 {
+		t.Fatalf("the time hold should still protect the playhead: %v", tt)
+	}
+}
+
 func TestHoldExpiresAndLiveWins(t *testing.T) {
 	st := &store{}
 	st.putSet(&Set{Length: 8})

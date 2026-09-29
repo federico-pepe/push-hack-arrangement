@@ -29,7 +29,7 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 | `touch.go` | The touch layer: knob/jog-wheel touch shows a status bar over the arrangement. See `docs/touch-layer.md` |
 | `bbs.go` | Bars.beats.16th formatting (`bbsPosition`, `bbsLength`), matching Live's own display |
 | `render.go` | Draws the 960x160 image: ruler, lanes, clips, names, locators, loop (region bar + on/off boundary lines), play-start anchor (triangle), scrub cursor, playhead |
-| `source.go` | Connection to the Remote Script, the current set, commands to Live. Also holds local-only state Live never reports back: the play-start anchor, the selected locator, and the scrub cursor |
+| `source.go` | Connection to the Remote Script, the current set, commands to Live. Also holds local-only state Live never reports back: the play-start anchor, the selected locator, and the scrub cursor. The playhead and the loop start/length each briefly ignore Live's report after a local edit (`hold`, `loopHold`) -- kept as two SEPARATE timers on purpose, so adjusting the loop can never freeze the playhead or vice versa |
 | `model.go` | Data types (Set, Track, Clip, Locator, Loop) |
 | `leds.go` | LED blackout and the few LEDs we light (Play, Session, Page </>, the 3 loop/punch buttons, the 4 D-pad directions) |
 | `depcheck.go` | Logs when push-manager or push-display is missing |

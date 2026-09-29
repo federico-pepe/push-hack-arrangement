@@ -31,13 +31,18 @@ type store struct {
 	loopStart, loopLength float64
 	punchIn, punchOut     bool
 
-	// hold: ignore Live's reported time/loop-start/length until this passes.
-	// Set on a local jog or loop-knob edit, so the screen shows OUR value at
-	// once instead of waiting a round trip to the Remote Script and back.
-	// Booleans (playing, bta, loop on/off, punch) don't need this: a button
-	// press is a one-shot action, so the ~100-250ms round trip is not felt
-	// the way it would be while a knob is turning continuously.
-	hold time.Time
+	// hold / loopHold: ignore Live's reported time (hold) or loop start/length
+	// (loopHold) until each passes. Set on a local jog or loop-knob edit, so
+	// the screen shows OUR value at once instead of waiting a round trip to
+	// the Remote Script and back. Kept SEPARATE on purpose: they used to share
+	// one field, so turning the loop knob kept re-arming the same hold and the
+	// on-screen playhead would sit frozen for as long as you kept turning it,
+	// even while the song was playing and Live's own position kept moving.
+	// Booleans (playing, bta, loop on/off, punch) don't need a hold at all: a
+	// button press is a one-shot action, so the ~100-250ms round trip is not
+	// felt the way it would be while a knob is turning continuously.
+	hold     time.Time
+	loopHold time.Time
 
 	// Play-start anchor (jog wheel press). Local only: never sent by Live.
 	hasAnchor bool
@@ -105,14 +110,19 @@ func (st *store) transport() (loopOn, punchIn, punchOut bool, loopStart, loopLen
 	return st.loopOn, st.punchIn, st.punchOut, st.loopStart, st.loopLength
 }
 
-// putPos stores what Live reported. Time and loop start/length are ignored for
-// a short while after our own edit, so a late report does not pull them back;
-// the on/off flags always update at once (see the `hold` field's comment).
+// putPos stores what Live reported. Time is ignored for a short while after
+// our own jog/seek edit (hold), and loop start/length after our own knob edit
+// (loopHold) -- independently, so turning the loop knob can never freeze the
+// playhead, or vice versa. The on/off flags always update at once (see the
+// `hold` field's comment).
 func (st *store) putPos(t float64, playing, bta, loopOn bool, loopStart, loopLength float64, punchIn, punchOut bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if time.Now().After(st.hold) {
+	now := time.Now()
+	if now.After(st.hold) {
 		st.playhead = t
+	}
+	if now.After(st.loopHold) {
 		st.loopStart, st.loopLength = loopStart, loopLength
 	}
 	if bta != st.bta {
@@ -153,12 +163,13 @@ func (st *store) getCursor() (float64, bool) {
 }
 
 // setLocalLoop moves the loop start/length at once (the loop knobs), before
-// Live confirms.
+// Live confirms. Uses its own hold (loopHold), separate from the playhead's,
+// so adjusting the loop never freezes the on-screen playhead.
 func (st *store) setLocalLoop(start, length float64) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.loopStart, st.loopLength = start, length
-	st.hold = time.Now().Add(localHold)
+	st.loopHold = time.Now().Add(localHold)
 }
 
 const localHold = 400 * time.Millisecond
