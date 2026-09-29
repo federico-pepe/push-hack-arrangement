@@ -27,6 +27,7 @@ class SnapshotTest(unittest.TestCase):
                 group_track=None, arrangement_clips=[])
         return O(tracks=[grp, kick, aud], cue_points=[O(time=4.0, name="Drop")],
                  loop=True, loop_start=8.0, loop_length=16.0,
+                 punch_in=True, punch_out=False,
                  signature_numerator=3, signature_denominator=4, tempo=124.0,
                  current_song_time=2.5, is_playing=True)
 
@@ -38,13 +39,15 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(s["tracks"][1]["clips"][0], [0.0, 8.0, "A", 0x112233])
         self.assertEqual(s["tracks"][0]["clips"], [])
         self.assertEqual(s["locators"], [{"time": 4.0, "name": "Drop"}])
-        self.assertEqual(s["loop"], {"on": True, "start": 8.0, "length": 16.0})
         self.assertEqual(s["sig"], [3, 4])
+        self.assertNotIn("loop", s)  # loop/punch travel in "pos", not the snapshot
         json.dumps(s)
 
     def test_pos(self):
         p = json.loads(pos_json(self.song()))
-        self.assertEqual(p, {"t": "pos", "time": 2.5, "playing": True, "bta": False})
+        self.assertEqual(p, {"t": "pos", "time": 2.5, "playing": True, "bta": False,
+                             "loop_on": True, "loop_start": 8.0, "loop_length": 16.0,
+                             "punch_in": True, "punch_out": False})
 
     def test_bad_track_does_not_break(self):
         song = self.song()
@@ -61,6 +64,11 @@ class CommandsTest(unittest.TestCase):
             current_song_time = 0.0
             is_playing = False
             back_to_arranger = 1
+            loop = False
+            loop_start = 0.0
+            loop_length = 4.0
+            punch_in = False
+            punch_out = False
             tracks = []
 
             def start_playing(self):
@@ -91,6 +99,37 @@ class CommandsTest(unittest.TestCase):
         s, _ = self.song()
         apply_commands(s, [{"t": "set_time", "v": -4}])
         self.assertEqual(s.current_song_time, 0.0)
+
+    def test_loop_and_punch_toggles(self):
+        s, _ = self.song()
+        apply_commands(s, [{"t": "loop_toggle"}])
+        self.assertTrue(s.loop)
+        apply_commands(s, [{"t": "loop_toggle"}])
+        self.assertFalse(s.loop)
+        apply_commands(s, [{"t": "punch_in_toggle"}])
+        self.assertTrue(s.punch_in)
+        apply_commands(s, [{"t": "punch_out_toggle"}])
+        self.assertTrue(s.punch_out)
+
+    def test_set_loop(self):
+        s, _ = self.song()
+        apply_commands(s, [{"t": "set_loop", "start": 32.0, "length": 64.0}])
+        self.assertEqual(s.loop_start, 32.0)
+        self.assertEqual(s.loop_length, 64.0)
+
+    def test_set_loop_clamped(self):
+        s, _ = self.song()
+        apply_commands(s, [{"t": "set_loop", "start": -8.0, "length": 0.0}])
+        self.assertEqual(s.loop_start, 0.0)
+        self.assertGreater(s.loop_length, 0.0)
+
+    def test_only_last_set_loop_applies(self):
+        s, _ = self.song()
+        n = apply_commands(s, [{"t": "set_loop", "start": 4.0, "length": 4.0},
+                               {"t": "set_loop", "start": 40.0, "length": 8.0}])
+        self.assertEqual(n, 1)
+        self.assertEqual(s.loop_start, 40.0)
+        self.assertEqual(s.loop_length, 8.0)
 
 
 if __name__ == "__main__":

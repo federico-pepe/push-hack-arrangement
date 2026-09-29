@@ -44,15 +44,13 @@ def build_snapshot(song):
     locators = []
     for cp in _safe(lambda: list(song.cue_points), []):
         locators.append({"time": round(float(cp.time), 4), "name": _safe(lambda: cp.name, "") or ""})
+    # Loop and punch state are NOT here -- they live in pos_json below. A
+    # snapshot is built at most once a second; "pos" runs every tick, so a
+    # loop toggle or a knob turn shows up almost at once instead of waiting.
     return {
         "t": "snapshot",
         "tracks": tracks,
         "locators": locators,
-        "loop": {
-            "on": bool(_safe(lambda: song.loop, False)),
-            "start": float(_safe(lambda: song.loop_start, 0.0)),
-            "length": float(_safe(lambda: song.loop_length, 0.0)),
-        },
         "sig": [_safe(lambda: int(song.signature_numerator), 4),
                 _safe(lambda: int(song.signature_denominator), 4)],
         "tempo": float(_safe(lambda: song.tempo, 120.0)),
@@ -64,8 +62,14 @@ def snapshot_json(song):
 
 
 def pos_json(song):
-    return json.dumps({"t": "pos",
-                       "time": round(float(song.current_song_time), 3),
-                       "playing": bool(song.is_playing),
-                       "bta": bool(_safe(lambda: song.back_to_arranger, False))},
-                      separators=(",", ":"))
+    return json.dumps({
+        "t": "pos",
+        "time": round(float(song.current_song_time), 3),
+        "playing": bool(song.is_playing),
+        "bta": bool(_safe(lambda: song.back_to_arranger, False)),
+        "loop_on": bool(_safe(lambda: song.loop, False)),
+        "loop_start": round(float(_safe(lambda: song.loop_start, 0.0)), 4),
+        "loop_length": round(float(_safe(lambda: song.loop_length, 4.0)), 4),
+        "punch_in": bool(_safe(lambda: song.punch_in, False)),
+        "punch_out": bool(_safe(lambda: song.punch_out, False)),
+    }, separators=(",", ":"))

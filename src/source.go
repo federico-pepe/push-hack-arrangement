@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"sort"
 	"sync"
 	"time"
 )
@@ -24,8 +25,34 @@ type store struct {
 	hint     string
 	playhead float64
 	playing  bool
-	bta      bool      // a track is off the arrangement (Back to Arrangement is lit)
-	hold     time.Time // ignore Live's time until then (we just moved it ourselves)
+	bta      bool // a track is off the arrangement (Back to Arrangement is lit)
+
+	loopOn                bool
+	loopStart, loopLength float64
+	punchIn, punchOut     bool
+
+	// hold: ignore Live's reported time/loop-start/length until this passes.
+	// Set on a local jog or loop-knob edit, so the screen shows OUR value at
+	// once instead of waiting a round trip to the Remote Script and back.
+	// Booleans (playing, bta, loop on/off, punch) don't need this: a button
+	// press is a one-shot action, so the ~100-250ms round trip is not felt
+	// the way it would be while a knob is turning continuously.
+	hold time.Time
+
+	// Play-start anchor (jog wheel press). Local only: never sent by Live.
+	hasAnchor bool
+	anchor    float64
+
+	// Locator last jumped to with Page </>. Local only, matched by time.
+	hasSelLocator bool
+	selLocator    float64
+
+	// Scrub cursor (plain jog wheel). Local only, never sent to or echoed by
+	// Live: this is the whole point -- looking around without seeking. A real
+	// seek (setLocalTime, from Shift+jog, locator nav or the anchor jump)
+	// drops it, since the real playhead is now wherever the cursor pointed to.
+	hasCursor bool
+	cursor    float64
 }
 
 // get returns a copy of the set with the live playhead, or a message to show.
@@ -38,6 +65,11 @@ func (st *store) get() (*Set, string, string) {
 	s := *st.set // slices shared, read-only
 	s.Playhead = st.playhead
 	s.Overridden = st.bta
+	s.Loop = Loop{On: st.loopOn, Start: st.loopStart, Length: st.loopLength}
+	s.PunchIn, s.PunchOut = st.punchIn, st.punchOut
+	s.HasAnchor, s.Anchor = st.hasAnchor, st.anchor
+	s.HasSelLocator, s.SelLocator = st.hasSelLocator, st.selLocator
+	s.HasCursor, s.Cursor = st.hasCursor, st.cursor
 	return &s, "", ""
 }
 
@@ -65,18 +97,29 @@ func (st *store) state() (playing, bta bool) {
 	return st.playing, st.bta
 }
 
-// putPos stores what Live reported. The time is ignored for a short while after
-// our own jog move, so a late report does not pull the playhead back.
-func (st *store) putPos(t float64, playing, bta bool) {
+// transport returns the loop and punch state (loop on/off, punch in/out, loop
+// start and length in beats).
+func (st *store) transport() (loopOn, punchIn, punchOut bool, loopStart, loopLength float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.loopOn, st.punchIn, st.punchOut, st.loopStart, st.loopLength
+}
+
+// putPos stores what Live reported. Time and loop start/length are ignored for
+// a short while after our own edit, so a late report does not pull them back;
+// the on/off flags always update at once (see the `hold` field's comment).
+func (st *store) putPos(t float64, playing, bta, loopOn bool, loopStart, loopLength float64, punchIn, punchOut bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if time.Now().After(st.hold) {
 		st.playhead = t
+		st.loopStart, st.loopLength = loopStart, loopLength
 	}
 	if bta != st.bta {
 		log.Printf("back to arrangement available: %v", bta)
 	}
 	st.playing, st.bta = playing, bta
+	st.loopOn, st.punchIn, st.punchOut = loopOn, punchIn, punchOut
 }
 
 // setLocalTime moves the playhead at once (jog), before Live confirms.
@@ -85,9 +128,68 @@ func (st *store) setLocalTime(t float64) {
 	defer st.mu.Unlock()
 	st.playhead = t
 	st.hold = time.Now().Add(localHold)
+	st.hasCursor = false // a real seek: the cursor's job is done
+}
+
+// setCursor / clearCursor / getCursor: the scrub cursor. Local only, and
+// unlike setLocalTime, NOT reconciled against anything Live reports -- there
+// is nothing to reconcile, since we never told Live to move.
+func (st *store) setCursor(t float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasCursor, st.cursor = true, t
+}
+
+func (st *store) clearCursor() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasCursor = false
+}
+
+func (st *store) getCursor() (float64, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.cursor, st.hasCursor
+}
+
+// setLocalLoop moves the loop start/length at once (the loop knobs), before
+// Live confirms.
+func (st *store) setLocalLoop(start, length float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.loopStart, st.loopLength = start, length
+	st.hold = time.Now().Add(localHold)
 }
 
 const localHold = 400 * time.Millisecond
+
+// setAnchor / clearAnchor / getAnchor: the play-start anchor (jog wheel
+// press). Local only -- Live never reports it back.
+func (st *store) setAnchor(t float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasAnchor, st.anchor = true, t
+}
+
+func (st *store) clearAnchor() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasAnchor = false
+}
+
+func (st *store) getAnchor() (float64, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.anchor, st.hasAnchor
+}
+
+// setSelLocator remembers which locator (by time) Page </> last jumped to,
+// so the render can draw its line white instead of light blue.
+func (st *store) setSelLocator(t float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasSelLocator, st.selLocator = true, t
+}
 
 const hintActivate = "Enable PushHackArrangement in Live Preferences (control surface, Input/Output None), restart Live"
 
@@ -124,16 +226,20 @@ type wireMsg struct {
 		Time float64 `json:"time"`
 		Name string  `json:"name"`
 	} `json:"locators"`
-	Loop struct {
-		On     bool    `json:"on"`
-		Start  float64 `json:"start"`
-		Length float64 `json:"length"`
-	} `json:"loop"`
-	Sig     [2]int  `json:"sig"`
-	Tempo   float64 `json:"tempo"`
-	Time    float64 `json:"time"`
-	Playing bool    `json:"playing"`
-	BTA     bool    `json:"bta"`
+	Sig   [2]int  `json:"sig"`
+	Tempo float64 `json:"tempo"`
+
+	// "pos" fields. Loop/punch live here, not in the snapshot: "pos" is sent
+	// every tick it changes, so a toggle or a knob turn is reflected almost
+	// at once, instead of waiting for the next (much rarer) snapshot.
+	Time       float64 `json:"time"`
+	Playing    bool    `json:"playing"`
+	BTA        bool    `json:"bta"`
+	LoopOn     bool    `json:"loop_on"`
+	LoopStart  float64 `json:"loop_start"`
+	LoopLength float64 `json:"loop_length"`
+	PunchIn    bool    `json:"punch_in"`
+	PunchOut   bool    `json:"punch_out"`
 }
 
 func setFromSnapshot(m *wireMsg) *Set {
@@ -161,7 +267,9 @@ func setFromSnapshot(m *wireMsg) *Set {
 	for _, l := range m.Locators {
 		s.Locators = append(s.Locators, Locator{Time: l.Time, Name: l.Name})
 	}
-	s.Loop = Loop{On: m.Loop.On, Start: m.Loop.Start, Length: m.Loop.Length}
+	sort.Slice(s.Locators, func(i, j int) bool { return s.Locators[i].Time < s.Locators[j].Time })
+	// Loop/punch are not in the snapshot (see wireMsg): the store overlays
+	// them from the last "pos" message, the same way it overlays Playhead.
 	return s
 }
 
@@ -210,7 +318,7 @@ func readLive(conn net.Conn, st *store, onChange func(), stop <-chan struct{}) {
 			log.Printf("snapshot: %d tracks, %.0f beats, %d locators", len(s.Tracks), s.Length, len(s.Locators))
 			onChange()
 		case "pos":
-			st.putPos(m.Time, m.Playing, m.BTA)
+			st.putPos(m.Time, m.Playing, m.BTA, m.LoopOn, m.LoopStart, m.LoopLength, m.PunchIn, m.PunchOut)
 			onChange()
 		}
 	}

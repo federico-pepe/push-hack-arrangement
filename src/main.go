@@ -73,34 +73,79 @@ func main() {
 
 	st := &store{}
 	vc := newViewCtl(func() *Set { s, _, _ := st.get(); return s })
+	vc.onScrollAvailability(syncDPadLEDs)
+	var mode *modeCtl // set below; touch's callback closes over it
+
+	touch := newTouchLayer(func() map[uint8]string {
+		s, _, _ := st.get()
+		if s == nil {
+			return nil
+		}
+		bpb := s.bpb()
+		t := s.Playhead
+		if s.HasCursor { // jog moves the cursor, not the real playhead -- show that instead
+			t = s.Cursor
+		}
+		_, _, _, loopStart, loopLength := st.transport()
+		return map[uint8]string{
+			noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
+			noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
+			noteEncoder2Touch: "LOOP LEN " + bbsLength(loopLength, bpb),
+		}
+	}, func() { mode.refresh() })
+
 	frame := func() image.Image {
 		s, msg, hint := st.get()
 		if s == nil {
 			return renderMessage(msg, hint)
 		}
-		return renderArrangement(s, vc.viewport(s))
+		vp := vc.viewport(s)
+		if lines := touch.text(); len(lines) > 0 {
+			vp.toastLines = lines
+		}
+		return renderArrangement(s, vp)
 	}
-	mode := newModeCtl(client, frame)
+	mode = newModeCtl(client, frame)
+
+	// syncLEDs repaints every LED this hack manages from the store's current
+	// state. Called once when the mode turns on, and again (via burstLEDs)
+	// whenever Live reports a change, so Live's own repaint never wins.
+	syncLEDs := func() {
+		playing, bta := st.state()
+		loopOn, punchIn, punchOut, _, _ := st.transport()
+		syncStateLEDs(playing, bta)
+		syncTransportLEDs(loopOn, punchIn, punchOut)
+		syncNavLEDs()
+		if s, _, _ := st.get(); s != nil {
+			syncDPadLEDs(vc.availability(s))
+		}
+	}
 
 	stop := make(chan struct{})
 	if *setPath != "" {
-		// dev: show a saved .als once instead of the Remote Script
+		// dev: show a saved .als once instead of the Remote Script. store.get()
+		// always overlays Loop/PunchIn/PunchOut from a "pos" report (see
+		// putPos); seed it once from the file so the loop bar isn't blanked.
 		s, err := LoadSetFile(*setPath)
 		if err != nil {
 			log.Fatal(err)
 		}
 		st.putSet(s)
+		st.putPos(s.Playhead, false, false, s.Loop.On, s.Loop.Start, s.Loop.Length, false, false)
 	} else {
-		var lastPlaying, lastBTA bool
+		var last struct{ playing, bta, loopOn, punchIn, punchOut bool }
 		go runLiveSource(st, func() {
 			if mode.isOn() {
 				t, playing := st.pos()
 				vc.follow(t, playing)
-				playing, bta := st.state()
-				if playing != lastPlaying || bta != lastBTA {
-					lastPlaying, lastBTA = playing, bta
-					syncStateLEDs(playing, bta)
-					burstLEDs(func() { syncStateLEDs(st.state()) })
+				_, bta := st.state()
+				loopOn, punchIn, punchOut, _, _ := st.transport()
+				if playing != last.playing || bta != last.bta || loopOn != last.loopOn ||
+					punchIn != last.punchIn || punchOut != last.punchOut {
+					last.playing, last.bta = playing, bta
+					last.loopOn, last.punchIn, last.punchOut = loopOn, punchIn, punchOut
+					syncLEDs()
+					burstLEDs(syncLEDs)
 				}
 			}
 			mode.refresh()
@@ -108,20 +153,26 @@ func main() {
 	}
 	chord := newChordDetector()
 	ctl := newControls(vc, st, mode.isOn, func() bool { return chord.isHeld(ccShift) }, mode.refresh, sendCmd,
-		func(what string) {
-			if what == "play" {
-				// Show the new state at once, before Live confirms; Live's own LED
-				// update would otherwise flash another colour first.
-				playing, _ := st.state()
-				setLED(byte(push3.CCPlay), map[bool]byte{true: ledPlayWhite, false: ledPlayGreen}[playing])
+		func(what string, on bool) {
+			switch what {
+			case "play":
+				setLED(byte(push3.CCPlay), map[bool]byte{true: ledPlayGreen, false: ledWhite}[on])
+			case "bta":
+				setLED(byte(push3.CCSession), map[bool]byte{true: ledWhite, false: 0}[on])
+			case "loop":
+				setLED(byte(push3.CCScreenTop1), map[bool]byte{true: ledYellow, false: ledWhite}[on])
+			case "punch_in":
+				setLED(byte(push3.CCScreenTop2), map[bool]byte{true: ledYellow, false: ledWhite}[on])
+			case "punch_out":
+				setLED(byte(push3.CCScreenTop3), map[bool]byte{true: ledYellow, false: ledWhite}[on])
 			}
-			burstLEDs(func() { syncStateLEDs(st.state()) })
+			burstLEDs(syncLEDs)
 		})
-	h := &midiHandler{chord: chord, onCC: ctl.onCC,
+	h := &midiHandler{chord: chord, onCC: ctl.onCC, onNote: touch.onNote,
 		onFire: func() {
 			mode.toggle()
 			if mode.isOn() {
-				syncStateLEDs(st.state())
+				syncLEDs()
 			} else {
 				ctl.releaseAll()
 			}

@@ -4,9 +4,12 @@ import (
 	"image"
 	"image/color"
 	"strconv"
+	"strings"
 
 	"github.com/federico-pepe/ableton-push-hack/core/gfx"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
 )
 
 // Push 3 screen size in pixels.
@@ -16,15 +19,41 @@ const (
 	rulerH  = 14
 )
 
+// paletteRGB resolves a Push palette index to its real RGB -- the same table
+// LED writes use (core/push3), so a colour drawn on screen matches the LED
+// that means the same thing (e.g. the loop brace and the Loop button).
+func paletteRGB(idx byte) color.NRGBA { return push3.ColorForIndex(idx).RGB }
+
+// namedRGB resolves a push3 palette colour name to its RGB. Panics on a
+// typo'd name -- only ever called with hand-checked names below.
+func namedRGB(name string) color.NRGBA {
+	idx, ok := push3.ColorByName(name)
+	if !ok {
+		panic("arrangement: unknown push3 colour " + name)
+	}
+	return paletteRGB(idx)
+}
+
+// Plain UI chrome: widgets.Default is the same shared theme push-manager's
+// Shadow UI and the other hacks draw with (itself resolved from push3.Palette
+// -- see core/gfx/widgets/theme.go), so this screen looks like the rest of
+// the framework instead of inventing its own palette.
 var (
-	colBG     = color.NRGBA{0, 0, 0, 255}
-	colGutter = color.NRGBA{22, 22, 22, 255}
-	colGrid   = color.NRGBA{34, 34, 34, 255}
-	colBar    = color.NRGBA{90, 90, 90, 255}
-	colText   = color.NRGBA{220, 220, 220, 255}
-	colPlay   = color.NRGBA{255, 255, 255, 255}
-	colLoop   = color.NRGBA{255, 200, 0, 255}
-	colLoc    = color.NRGBA{0, 200, 255, 255}
+	colBG     = widgets.Default.Black
+	colGutter = widgets.Default.DarkGray
+	colGrid   = widgets.Default.DarkGray
+	colBar    = namedRGB("gray_mid") // widgets.Default.Gray is green-tinted; a ruler wants neutral
+	colText   = widgets.Default.CrumbCol
+)
+
+// Colours that mean the same thing as a button LED, so they are resolved
+// from the very same palette index or name.
+var (
+	colPlay   = paletteRGB(ledWhite)  // playhead, toast border, selected locator
+	colLoop   = paletteRGB(ledYellow) // loop brace and boundaries, same as the lit Loop button
+	colLoc    = namedRGB("sky")       // untouched locator line
+	colAnchor = namedRGB("mint")      // play-start anchor marker
+	colCursor = namedRGB("lavender")  // scrub cursor (plain jog wheel; does not move Live)
 )
 
 func rgb(c uint32) color.NRGBA {
@@ -33,12 +62,12 @@ func rgb(c uint32) color.NRGBA {
 
 // viewport: what part of the arrangement is on screen.
 type viewport struct {
-	x0     float64 // time at left edge of the clip area (beats)
-	ppb    float64 // pixels per beat
-	laneH  float64 // pixels per track lane
-	first  float64 // first visible track (fractional)
-	gutter int     // width of the track-name column (0 = none)
-	toast  string  // short message to draw, "" = none
+	x0         float64  // time at left edge of the clip area (beats)
+	ppb        float64  // pixels per beat
+	laneH      float64  // pixels per track lane
+	first      float64  // first visible track (fractional)
+	gutter     int      // width of the track-name column (0 = none)
+	toastLines []string // message box lines (toast or the touch layer), nil = none
 }
 
 // fitView shows the whole song, every track.
@@ -77,6 +106,23 @@ func dim(c color.NRGBA) color.NRGBA {
 }
 
 func luma(c color.NRGBA) int { return (int(c.R)*299 + int(c.G)*587 + int(c.B)*114) / 1000 }
+
+const (
+	loopBraceY = rulerH - 2 // loop-region bar on the ruler: y start
+	loopBraceH = 4          // ...and height (taller than the old 2px)
+	anchorW    = 8          // play-start anchor triangle: base width
+	anchorH    = 6          // ...and height
+)
+
+// fillTriangleDown draws a small filled triangle pointing down (apex at the
+// bottom), base of width w centred on cx at row y0. Used for the play-start
+// anchor marker -- more visible at a glance than a short bar.
+func fillTriangleDown(img *image.NRGBA, cx, y0, w, h, minX int, col color.NRGBA) {
+	for row := 0; row < h; row++ {
+		half := w * (h - row) / (2 * h)
+		fill(img, cx-half, y0+row, 2*half+1, 1, minX, 0, col)
+	}
+}
 
 // renderArrangement draws the set. Text is ASCII only: the panel font has no other glyphs.
 func renderArrangement(s *Set, v viewport) *image.NRGBA {
@@ -139,37 +185,70 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		}
 	}
 
-	// locators
+	// locators -- the one last jumped to (Page </>) draws white, the rest sky blue
 	for _, l := range s.Locators {
 		if x := v.x(l.Time); x >= v.gutter && x < screenW {
-			gfx.FillRect(img, x, 0, 1, screenH, colLoc)
+			col := colLoc
+			if s.HasSelLocator && sameBeat(l.Time, s.SelLocator) {
+				col = colPlay
+			}
+			gfx.FillRect(img, x, 0, 1, screenH, col)
 		}
 	}
-	// loop brace on the ruler
+	// loop brace on the ruler -- shows the region regardless of on/off
 	if s.Loop.Length > 0 {
 		x0, x1 := v.x(s.Loop.Start), v.x(s.Loop.Start+s.Loop.Length)
 		if x1 > v.gutter && x0 < screenW {
-			fill(img, x0, rulerH-2, x1-x0, 2, v.gutter, 0, colLoop)
+			fill(img, x0, loopBraceY, x1-x0, loopBraceH, v.gutter, 0, colLoop)
+		}
+		// boundary lines, full height, only while the loop is actually ON
+		if s.Loop.On {
+			if x0 >= v.gutter && x0 < screenW {
+				fill(img, x0, top, 1, screenH-top, v.gutter, top, colLoop)
+			}
+			if x1 >= v.gutter && x1 < screenW {
+				fill(img, x1, top, 1, screenH-top, v.gutter, top, colLoop)
+			}
 		}
 	}
-	// playhead (saved insert marker)
+	// play-start anchor (jog wheel press): a small triangle pointing into the timeline
+	if s.HasAnchor {
+		if x := v.x(s.Anchor); x >= v.gutter && x < screenW {
+			fillTriangleDown(img, x, rulerH+1, anchorW, anchorH, v.gutter, colAnchor)
+		}
+	}
+	// scrub cursor (plain jog wheel -- local only, Live's playback is untouched)
+	if s.HasCursor {
+		if x := v.x(s.Cursor); x >= v.gutter && x < screenW {
+			fill(img, x, 0, 1, screenH, v.gutter, 0, colCursor)
+		}
+	}
+	// playhead (Live's real position)
 	if x := v.x(s.Playhead); x >= v.gutter && x < screenW {
 		fill(img, x, 0, 2, screenH, v.gutter, 0, colPlay)
 	}
 
-	if v.toast != "" {
-		drawToast(img, v.toast)
+	if len(v.toastLines) > 0 {
+		drawToast(img, v.toastLines)
 	}
 	return img
 }
 
-// drawToast: a short message box, bottom left.
-func drawToast(img *image.NRGBA, msg string) {
-	w := text.Width(msg) + 16
-	x, y := 8, screenH-24
-	gfx.FillRect(img, x-1, y-1, w+2, 20, colPlay)
-	gfx.FillRect(img, x, y, w, 18, colBG)
-	text.Draw(img, x+8, y+13, msg, colPlay)
+func sameBeat(a, b float64) bool {
+	d := a - b
+	return d > -1e-6 && d < 1e-6
+}
+
+const toastBarH = 18
+
+// joinToastLines combines several lines (e.g. the touch layer showing the
+// jog wheel and a loop knob at once) into one row for the status bar.
+func joinToastLines(lines []string) string { return strings.Join(lines, "   ") }
+
+// drawToast: a bottom status bar, widgets.DrawStatusBar -- the same one-line
+// message strip push-tethered-app's modules use.
+func drawToast(img *image.NRGBA, lines []string) {
+	widgets.DrawStatusBar(img, widgets.Default, screenH-toastBarH, screenW, toastBarH, joinToastLines(lines), false)
 }
 
 // drawRuler: bar numbers (labels >= 48 px apart), beat ticks when zoomed in.
@@ -215,7 +294,7 @@ func renderMessage(msg, hint string) *image.NRGBA {
 	gfx.FillRect(img, 0, 0, screenW, screenH, colBG)
 	text.DrawScaled(img, 20, 60, 2, msg, colPlay)
 	if hint != "" {
-		text.Draw(img, 20, 90, hint, colText)
+		widgets.DrawStatusBar(img, widgets.Default, screenH-toastBarH, screenW, toastBarH, hint, false)
 	}
 	return img
 }

@@ -136,10 +136,15 @@ Writing style: code comments via `caveman` skill; docs via `simple-english`.
 - `git log --format='%an <%ae>'` shows only Federico P..
 
 
-## Status (2026-09-25)
-Done: milestones 1-4, and from milestone 5 the jog playhead, Play, and Back to Arrangement.
-Also done: Remote Script (read + 3 commands), dark LEDs, dimmed clips while Session overrides,
-release workflow, repo `federico-pepe/push-hack-arrangement` with release v0.0.1-alpha.
+## Status (2026-09-29)
+Done: milestones 1-4, and from milestone 5: jog wheel (scrub cursor by default, Shift = real
+seek), the play-start anchor, Play, Back to Arrangement, Page </> locator navigation, Loop/Punch
+In/Punch Out toggles with LEDs, loop start/length knobs, D-pad LEDs that light only when a
+direction can still scroll, and the touch layer for the jog wheel and loop knobs. Also done:
+Remote Script (read + 7 commands), dark LEDs, dimmed clips while Session overrides, release
+workflow, repo `federico-pepe/push-hack-arrangement`, releases through v0.0.3-alpha, and a pass
+reusing `core/push3`/`core/gfx/widgets` instead of hand-rolled colours and CC decoding.
 Changed from the plan: the Unix socket carries commands both ways; the .als reader is only a
-preview/dev tool; Session button LED is greyscale (palette 120).
+preview/dev tool; Session button LED is greyscale (palette 120); the jog wheel's default move is
+local-only (no live seek), with Shift for a real seek -- the original plan did not call this out.
 Open: see README "Roadmap".

@@ -16,28 +16,37 @@ const midiPortName = "Arrangement MIDI In"
 type midiHandler struct {
 	chord  *chordDetector
 	onFire func()
-	onCC   func(cc, val uint8) // every other control CC (view controls)
+	onCC   func(cc, val uint8)       // every other control CC (view controls)
+	onNote func(note uint8, on bool) // knob/jog touch (see touch.go)
 }
 
 func (h *midiHandler) Fixed(evType uint8, src alsaseq.Addr, data []byte) {
-	if evType != alsaseq.EvController {
-		return
-	}
 	if src.Client != alsaseq.Push3ClientDefault || src.Port != alsaseq.Push3PortDefault {
 		return
 	}
-	// Control surface CCs are channel 0. Other channels = per-pad MPE stream.
+	// Control surface CCs and touch notes are channel 0. Other channels =
+	// per-pad MPE stream (pressure, CC 74 "timbre") or an actual pad hit.
 	if data[0]&0x0F != 0 {
 		return
 	}
-	cc := uint8(binary.LittleEndian.Uint32(data[4:]) & 0x7F)
-	val := uint8(binary.LittleEndian.Uint32(data[8:]) & 0x7F)
-	if h.chord.onCC(cc, val) {
-		go h.onFire()
-		return
-	}
-	if h.onCC != nil {
-		h.onCC(cc, val)
+	switch evType {
+	case alsaseq.EvController:
+		cc := uint8(binary.LittleEndian.Uint32(data[4:]) & 0x7F)
+		val := uint8(binary.LittleEndian.Uint32(data[8:]) & 0x7F)
+		if h.chord.onCC(cc, val) {
+			go h.onFire()
+			return
+		}
+		if h.onCC != nil {
+			h.onCC(cc, val)
+		}
+	case alsaseq.EvNoteOn, alsaseq.EvNoteOff:
+		if h.onNote == nil {
+			return
+		}
+		note := data[1]
+		vel := data[2]
+		h.onNote(note, evType == alsaseq.EvNoteOn && vel > 0)
 	}
 }
 

@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Transport and locators
+- Jog wheel press sets a play-start anchor at the current position (drawn as a small green triangle); Shift + press clears it. Pressing Play jumps there first if one is set.
+- Page < / Page > jump to the previous/next locator (a real seek). The locator you land on draws white instead of sky blue. Both buttons are always lit white.
+- Top buttons 1/2/3 (above the screen): Loop on/off, Punch In, Punch Out. White when off, yellow when on, matching the LED palette index used for the LED itself.
+- Encoders 1/2 (top knobs 1/2, touch-capable): loop start and length, one bar per detent; Shift switches to a precise 1/16 beat step (not a coarser one -- for lining the loop up exactly).
+- Loop region: the ruler bar is taller, and while Loop is on, full-height yellow lines mark the loop's start and end. The bar itself still shows the region when Loop is off.
+
+### Jog wheel: scrub without seeking
+- Plain jog wheel now moves a local "scrub cursor" only -- Live's real playback is never touched, so nothing audibly jumps while looking around during playback. Shift + jog wheel keeps the old behaviour: a real seek (`set_time`), audible if playing.
+- Horizontal zoom (Tempo knob) always keeps the playhead -- or the scrub cursor, while one is active -- centred on screen, at any zoom level.
+- The play-start anchor and Page </> locator jump follow the scrub cursor when one is active (so pressing jog after scrubbing anchors/jumps from where you were looking, not a stale playhead).
+
+### Touch layer
+- Built for the jog wheel and loop knobs 1/2 (`touch.go`): touching a knob or the jog wheel shows a status bar at the bottom of the screen with the exact value (bars.beats.16th, e.g. `97.1.1`, or `16.0.0` for a 16-bar length). Stays up briefly after release. The rest of the design (Volume, Tempo, the other top knobs) is still open in `docs/touch-layer.md`.
+
+### D-pad
+- Up/down/left/right now light white only while that direction still has more to scroll, dark at the edge (`view.go`'s `computeAvailability`, wired to `leds.go`'s `syncDPadLEDs`).
+
+### Remote Script protocol
+- Loop and punch state (`loop_on`, `loop_start`, `loop_length`, `punch_in`, `punch_out`) moved from the once-a-second `snapshot` message into the every-tick `pos` message, so a toggle or a knob turn shows up almost at once instead of waiting for the next snapshot.
+- New commands: `loop_toggle`, `punch_in_toggle`, `punch_out_toggle`, `set_loop`. `set_time` and `set_loop` are coalesced per tick (only the last of each kind is applied), matching how the jog wheel and loop knobs can send several in one tick.
+- **Restart Live after updating the script** (protocol change).
+
+### Reuse core instead of hand-rolling
+- Relative-encoder decoding now uses `core/push3.DecodeRel` (removed a duplicate local copy). CC/note constants for every new control are named from `core/push3` instead of being restated as magic numbers.
+- Screen chrome (background, grid, ruler, text) now comes from `core/gfx/widgets.Default`, the same shared theme push-manager's Shadow UI and the other hacks draw with. The bottom message/touch-layer bar uses `widgets.DrawStatusBar`, the same one-line strip other push-hack modules use, in place of a hand-rolled floating box.
+
 ## [0.0.3-alpha] - 2026-09-25
 
 - Volume knob now scrolls the view in time (this replaces Shift + jog wheel, which is gone; the jog wheel always moves the playhead).

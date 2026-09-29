@@ -63,7 +63,7 @@ func TestToastDraws(t *testing.T) {
 	s := testSet()
 	v := fitView(s)
 	plain := renderArrangement(s, v)
-	v.toast = "ZOOM: TIME"
+	v.toastLines = []string{"ZOOM: TIME"}
 	withToast := renderArrangement(s, v)
 	same := true
 	for i := range plain.Pix {
@@ -74,5 +74,81 @@ func TestToastDraws(t *testing.T) {
 	}
 	if same {
 		t.Fatal("toast must change the image")
+	}
+}
+
+func TestJoinToastLinesCombinesForOneStatusBarRow(t *testing.T) {
+	if got := joinToastLines([]string{"A", "B"}); got != "A   B" {
+		t.Fatalf("got %q", got)
+	}
+	if got := joinToastLines([]string{"solo"}); got != "solo" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAnchorMarkerDraws(t *testing.T) {
+	s := testSet()
+	v := fitView(s)
+	plain := renderArrangement(s, v)
+	s.HasAnchor, s.Anchor = true, 2
+	withAnchor := renderArrangement(s, v)
+	x, y := v.x(2), rulerH+2
+	if plain.NRGBAAt(x, y) == withAnchor.NRGBAAt(x, y) {
+		t.Fatal("anchor marker must change the image")
+	}
+}
+
+func TestCursorMarkerDraws(t *testing.T) {
+	s := testSet()
+	v := fitView(s)
+	plain := renderArrangement(s, v)
+	s.HasCursor, s.Cursor = true, 12
+	withCursor := renderArrangement(s, v)
+	x, y := v.x(12), screenH/2
+	if plain.NRGBAAt(x, y) == withCursor.NRGBAAt(x, y) {
+		t.Fatal("cursor marker must change the image")
+	}
+	if got := withCursor.NRGBAAt(x, y); got != colCursor {
+		t.Fatalf("cursor pixel should be colCursor, got %v", got)
+	}
+}
+
+func TestLoopBoundaryLinesOnlyWhenOn(t *testing.T) {
+	s := testSet() // Loop: On=true, Start=4, Length=8 -> boundary at 4 and 12
+	v := fitView(s)
+	x0, x1 := v.x(4), v.x(12)
+	on := renderArrangement(s, v)
+	if on.NRGBAAt(x0, screenH/2) != colLoop || on.NRGBAAt(x1, screenH/2) != colLoop {
+		t.Fatal("loop boundaries must be drawn (colLoop) when Loop.On")
+	}
+	s.Loop.On = false
+	off := renderArrangement(s, v)
+	if off.NRGBAAt(x0, screenH/2) == colLoop || off.NRGBAAt(x1, screenH/2) == colLoop {
+		t.Fatal("loop boundaries must NOT be drawn when Loop.On is false")
+	}
+}
+
+func TestLoopBraceStillShowsRegionWhenOff(t *testing.T) {
+	s := testSet()
+	s.Loop.On = false
+	v := fitView(s)
+	x := v.x(6) // inside the loop region [4,12)
+	if renderArrangement(s, v).NRGBAAt(x, loopBraceY) != colLoop {
+		t.Fatal("the horizontal brace should still mark the region even when Loop is off")
+	}
+}
+
+func TestSelectedLocatorDrawsWhiteNotSky(t *testing.T) {
+	s := testSet() // one locator at time=8
+	v := fitView(s)
+	x := v.x(8)
+	unselected := renderArrangement(s, v).NRGBAAt(x, screenH/2)
+	if unselected != colLoc {
+		t.Fatalf("untouched locator should be colLoc, got %v", unselected)
+	}
+	s.HasSelLocator, s.SelLocator = true, 8
+	selected := renderArrangement(s, v).NRGBAAt(x, screenH/2)
+	if selected != colPlay {
+		t.Fatalf("selected locator should be colPlay (white), got %v", selected)
 	}
 }

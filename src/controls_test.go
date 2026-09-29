@@ -46,12 +46,17 @@ func TestJogMultiplier(t *testing.T) {
 	}
 }
 
+type fbCall struct {
+	what string
+	on   bool
+}
+
 type rig struct {
 	c       *controls
 	st      *store
 	mu      sync.Mutex
 	cmds    []map[string]any
-	fb      []string
+	fb      []fbCall
 	on      bool
 	shift   bool
 	redraws int
@@ -68,7 +73,7 @@ func newRig() *rig {
 		func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.shift },
 		func() { r.mu.Lock(); r.redraws++; r.mu.Unlock() },
 		func(m map[string]any) { r.mu.Lock(); r.cmds = append(r.cmds, m); r.mu.Unlock() },
-		func(w string) { r.mu.Lock(); r.fb = append(r.fb, w); r.mu.Unlock() })
+		func(w string, on bool) { r.mu.Lock(); r.fb = append(r.fb, fbCall{w, on}); r.mu.Unlock() })
 	return r
 }
 
@@ -78,25 +83,131 @@ func (r *rig) sent() []map[string]any {
 	return append([]map[string]any(nil), r.cmds...)
 }
 
-func TestJogMovesPlayheadAndSendsSetTime(t *testing.T) {
+func (r *rig) feedback() []fbCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]fbCall(nil), r.fb...)
+}
+
+func TestPlainJogMovesCursorOnlyNoCommandSent(t *testing.T) {
 	r := newRig()
-	r.st.putPos(8, false, false)
+	r.st.putPos(8, true, false, false, 0, 4, false, false) // playing: an audible jump would be heard
+	r.c.onCC(ccJog, 1)
+	if got := r.sent(); len(got) != 0 {
+		t.Fatalf("plain jog must not touch Live: %v", got)
+	}
+	if tt, _ := r.st.pos(); tt != 8 {
+		t.Fatal("the real playhead must not move")
+	}
+	ct, ok := r.st.getCursor()
+	if !ok || ct <= 8 {
+		t.Fatalf("cursor did not move forward: %v %v", ct, ok)
+	}
+}
+
+func TestShiftJogReallySeeks(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.shift = true
 	r.c.onCC(ccJog, 1)
 	got := r.sent()
 	if len(got) != 1 || got[0]["t"] != "set_time" {
-		t.Fatalf("cmds %v", got)
+		t.Fatalf("shift+jog must really seek: %v", got)
 	}
 	if tt, _ := r.st.pos(); tt <= 8 {
 		t.Fatalf("playhead did not move forward: %v", tt)
 	}
 }
 
-func TestShiftDoesNotChangeJog(t *testing.T) {
+func TestShiftJogDropsAnyActiveCursor(t *testing.T) {
 	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.st.setCursor(20)
 	r.shift = true
 	r.c.onCC(ccJog, 1)
-	if got := r.sent(); len(got) != 1 || got[0]["t"] != "set_time" {
-		t.Fatalf("jog with Shift still moves the playhead: %v", got)
+	if _, ok := r.st.getCursor(); ok {
+		t.Fatal("a real seek must drop the scrub cursor")
+	}
+}
+
+func TestPlainJogContinuesFromCursorNotStalePlayhead(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.st.setCursor(40)
+	r.c.onCC(ccJog, 1)
+	ct, _ := r.st.getCursor()
+	if ct <= 40 {
+		t.Fatalf("must continue from the cursor (40), got %v", ct)
+	}
+}
+
+func TestJogPressSetsAnchorSilently(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccJogPress, 127)
+	if len(r.sent()) != 0 {
+		t.Fatal("setting the anchor must not touch Live or the playhead")
+	}
+	tt, ok := r.st.getAnchor()
+	if !ok || tt != 8 {
+		t.Fatalf("anchor %v %v", tt, ok)
+	}
+	if tp, _ := r.st.pos(); tp != 8 {
+		t.Fatal("the playhead itself must not move")
+	}
+}
+
+func TestJogPressAnchorsAtCursorWhenOneIsActive(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.st.setCursor(30)
+	r.c.onCC(ccJogPress, 127)
+	tt, ok := r.st.getAnchor()
+	if !ok || tt != 30 {
+		t.Fatalf("anchor should follow the cursor: %v %v", tt, ok)
+	}
+}
+
+func TestShiftJogPressClearsAnchor(t *testing.T) {
+	r := newRig()
+	r.st.setAnchor(4)
+	r.shift = true
+	r.c.onCC(ccJogPress, 127)
+	if _, ok := r.st.getAnchor(); ok {
+		t.Fatal("shift+press must clear the anchor")
+	}
+}
+
+func TestPlayJumpsToAnchorThenToggles(t *testing.T) {
+	r := newRig()
+	r.st.putPos(20, false, false, false, 0, 4, false, false)
+	r.st.setAnchor(4)
+	r.c.onCC(ccPlay, 127)
+	got := r.sent()
+	if len(got) != 2 || got[0]["t"] != "set_time" || got[0]["v"] != 4.0 || got[1]["t"] != "play_toggle" {
+		t.Fatalf("cmds %v", got)
+	}
+	if tt, _ := r.st.pos(); tt != 4 {
+		t.Fatal("screen must jump to the anchor at once")
+	}
+}
+
+func TestPlayWithNoAnchorJustToggles(t *testing.T) {
+	r := newRig()
+	r.st.putPos(20, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccPlay, 127)
+	if got := r.sent(); len(got) != 1 || got[0]["t"] != "play_toggle" {
+		t.Fatalf("cmds %v", got)
+	}
+}
+
+func TestPlayWhilePlayingDoesNotJump(t *testing.T) {
+	r := newRig()
+	r.st.putPos(20, true, false, false, 0, 4, false, false)
+	r.st.setAnchor(4)
+	r.c.onCC(ccPlay, 127)
+	if got := r.sent(); len(got) != 1 || got[0]["t"] != "play_toggle" {
+		t.Fatalf("must only stop, not jump: %v", got)
 	}
 }
 
@@ -124,8 +235,8 @@ func TestTempoKnobZoomsAndClickToggles(t *testing.T) {
 	}
 	r.c.onCC(ccTempoPress, 127)
 	r.c.onCC(ccTempoPress, 0) // release ignored
-	if v := r.c.vc.viewport(s); v.toast != "ZOOM: TRACKS" {
-		t.Fatalf("toast %q", v.toast)
+	if v := r.c.vc.viewport(s); len(v.toastLines) != 1 || v.toastLines[0] != "ZOOM: TRACKS" {
+		t.Fatalf("toast %v", v.toastLines)
 	}
 	ppb1 := r.c.vc.viewport(s).ppb
 	r.c.onCC(ccTempoDial, 5)
@@ -134,7 +245,7 @@ func TestTempoKnobZoomsAndClickToggles(t *testing.T) {
 		t.Fatalf("expected track zoom only: %+v", v)
 	}
 	r.c.onCC(ccTempoPress, 127)
-	if r.c.vc.viewport(s).toast != "ZOOM: TIME" {
+	if tl := r.c.vc.viewport(s).toastLines; len(tl) != 1 || tl[0] != "ZOOM: TIME" {
 		t.Fatal("toggle back")
 	}
 }
@@ -142,17 +253,18 @@ func TestTempoKnobZoomsAndClickToggles(t *testing.T) {
 func TestToastExpires(t *testing.T) {
 	vc, s := newTestView()
 	vc.setToast("hi", 30*time.Millisecond)
-	if vc.viewport(s).toast != "hi" {
+	if tl := vc.viewport(s).toastLines; len(tl) != 1 || tl[0] != "hi" {
 		t.Fatal("toast must show")
 	}
 	time.Sleep(50 * time.Millisecond)
-	if vc.viewport(s).toast != "" {
+	if vc.viewport(s).toastLines != nil {
 		t.Fatal("toast must expire")
 	}
 }
 
 func TestPlayAndSession(t *testing.T) {
 	r := newRig()
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
 	r.c.onCC(ccPlay, 127)
 	r.c.onCC(ccPlay, 0) // release ignored
 	r.c.onCC(ccSession, 127)
@@ -162,10 +274,105 @@ func TestPlayAndSession(t *testing.T) {
 	if len(got) != 2 || got[0]["t"] != "play_toggle" || got[1]["t"] != "bta" {
 		t.Fatalf("cmds %v", got)
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(r.fb) != 2 || r.fb[0] != "play" || r.fb[1] != "bta" {
-		t.Fatalf("feedback %v", r.fb)
+	fb := r.feedback()
+	if len(fb) != 2 || fb[0] != (fbCall{"play", true}) || fb[1] != (fbCall{"bta", false}) {
+		t.Fatalf("feedback %v", fb)
+	}
+}
+
+func TestLoopAndPunchToggles(t *testing.T) {
+	r := newRig()
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccTopLoop, 127)
+	r.c.onCC(ccTopPunchI, 127)
+	r.c.onCC(ccTopPunchO, 127)
+	got := r.sent()
+	if len(got) != 3 || got[0]["t"] != "loop_toggle" || got[1]["t"] != "punch_in_toggle" || got[2]["t"] != "punch_out_toggle" {
+		t.Fatalf("cmds %v", got)
+	}
+	fb := r.feedback()
+	if len(fb) != 3 || fb[0] != (fbCall{"loop", true}) || fb[1] != (fbCall{"punch_in", true}) || fb[2] != (fbCall{"punch_out", true}) {
+		t.Fatalf("feedback %v", fb)
+	}
+	// pressing again (once Live's "on" report arrives) must ask to turn it off
+	r.st.putPos(0, false, false, true, 0, 4, true, true)
+	r.c.onCC(ccTopLoop, 127)
+	fb = r.feedback()
+	if last := fb[len(fb)-1]; last != (fbCall{"loop", false}) {
+		t.Fatalf("second press must ask to turn loop off: %v", last)
+	}
+}
+
+func TestAdjustLoopStartAndLength(t *testing.T) {
+	r := newRig()
+	r.st.putPos(0, false, false, false, 8, 16, false, false)
+	r.c.onCC(ccEncoder1, 1) // +1 bar (bpb=4 in viewSet)
+	got := r.sent()
+	if len(got) != 1 || got[0]["t"] != "set_loop" || got[0]["start"] != 12.0 || got[0]["length"] != 16.0 {
+		t.Fatalf("start bump: %v", got)
+	}
+	_, _, _, start, _ := r.st.transport()
+	if start != 12 {
+		t.Fatalf("local start %v", start)
+	}
+	r.c.onCC(ccEncoder2, 127) // decodeRel(127) == -1
+	_, _, _, _, length := r.st.transport()
+	if length != 12 { // 16 - 4
+		t.Fatalf("length after -1 bar: %v", length)
+	}
+}
+
+func TestAdjustLoopShiftIsFinerNotCoarser(t *testing.T) {
+	r := newRig()
+	r.st.putPos(0, false, false, false, 8, 16, false, false)
+	r.shift = true
+	r.c.onCC(ccEncoder1, 1)
+	_, _, _, start, _ := r.st.transport()
+	if start != 8.25 { // a precise 1/16 beat step, not a whole bar
+		t.Fatalf("shift step wrong: start=%v", start)
+	}
+}
+
+func TestAdjustLoopLengthNeverBelowOneStep(t *testing.T) {
+	r := newRig()
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccEncoder2, 100) // decodeRel(100) == -28: a big negative jump
+	_, _, _, _, length := r.st.transport()
+	if length <= 0 {
+		t.Fatalf("length must stay positive: %v", length)
+	}
+}
+
+func TestPageButtonsNavigateLocators(t *testing.T) {
+	r := newRig() // viewSet's locators: 40 ("A"), 100 ("B")
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
+
+	r.c.onCC(ccPageRight, 127) // -> 40
+	got := r.sent()
+	if len(got) != 1 || got[0]["t"] != "set_time" || got[0]["v"] != 40.0 {
+		t.Fatalf("cmds %v", got)
+	}
+	s, _, _ := r.st.get()
+	if !s.HasSelLocator || s.SelLocator != 40 {
+		t.Fatalf("selected locator not recorded: %+v", s)
+	}
+
+	r.c.onCC(ccPageRight, 127) // -> 100
+	got = r.sent()
+	if v := got[len(got)-1]["v"]; v != 100.0 {
+		t.Fatalf("must reach the next locator: %v", v)
+	}
+
+	r.c.onCC(ccPageRight, 127) // no further locator: clamp at 100
+	got = r.sent()
+	if v := got[len(got)-1]["v"]; v != 100.0 {
+		t.Fatalf("must clamp at the last locator: %v", v)
+	}
+
+	r.c.onCC(ccPageLeft, 127) // -> 40
+	got = r.sent()
+	if v := got[len(got)-1]["v"]; v != 40.0 {
+		t.Fatalf("page left must move to the earlier locator: %v", v)
 	}
 }
 

@@ -1,45 +1,52 @@
 # Push Hack: Arrangement
 
 Shows the Live Arrangement on the Push 3 screen. Zoom in time and in track height.
-Press **Shift + Session** to turn Arrangement Mode on or off. The view shows
-the text "Arrangement Mode". The second press closes the view at once.
+Press **Shift + Session** to turn Arrangement Mode on or off. The second press
+closes the view at once, with no message and no wait.
 
 While the mode is on, the hack uses push-manager's MIDI intercept. Live does not
-see the Push buttons, pads and encoders.
+see the Push buttons, pads and encoders. Every LED the hack does not use goes dark.
 
-**Status:** milestone 5 (first part). Playhead control, transport and Back to Arrangement work.
-See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
+**Status:** milestone 5, first part done. A Remote Script inside Live sends the
+arrangement of the **open** set (also unsaved edits), the playhead, and the loop
+and punch state to the hack. See
+[plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
+
+The view shows one lane per track, clips in their colours, locators (sky-blue
+lines; the one you last jumped to is white), the loop (a yellow bar on the
+ruler, with full-height yellow lines at its start and end while Loop is on),
+the play-start anchor (a small green triangle) and the playhead (white line).
+Clips draw dimmed while Session clips override the arrangement, and return to
+full colour once you press Back to Arrangement.
 
 ## Controls (while Arrangement Mode is on)
 
 | Control | Action |
 |---|---|
 | Shift + Session | Turn the mode on or off |
-| Jog wheel | Move the playhead. The step follows the zoom (from 1/64 beat to 32 beats). Turn fast to move more |
-| Play | Start or stop Live. The button is green while playing |
-| Session | Back to Arrangement. The button lights bright white when Session clips override the arrangement. The clips on screen are dimmed until you press it |
+| Jog wheel | Move a scrub marker to look around, without touching Live's actual playback (no audible jump) |
+| Shift + jog wheel | Really seek: moves Live's playhead for real, same as before (audible if playing) |
+| Jog wheel press | Set the play-start anchor at the current position, silently (nothing jumps). Shift + press clears it |
+| Play | Start or stop Live. Starting jumps to the anchor first, if one is set. The button is white when stopped, green while playing |
+| Session | Back to Arrangement. Lights bright white when Session clips override the arrangement (the button has a greyscale LED) |
+| Page < / Page > | Jump to the previous / next locator (a real seek). The one you land on turns white on screen. Both buttons are always lit white |
+| Top button 1 | Loop on/off. White when off, yellow when on |
+| Top button 2 | Punch In on/off. White when off, yellow when on |
+| Top button 3 | Punch Out on/off. White when off, yellow when on |
+| Encoder 1 (touch-capable) | Loop start, one bar per detent (Shift = a precise 1/16 beat step). Touching it shows the exact position (bars.beats.16th) over the arrangement |
+| Encoder 2 (touch-capable) | Loop length, one bar per detent (Shift = a precise 1/16 beat step). Touching it shows the exact length the same way |
 | Volume knob | Scroll the view in time |
-| Tempo knob | Zoom. It zooms in time at first. Press the knob to switch between time zoom and track zoom. A short message shows the mode. When lanes are tall enough, track and clip names appear |
-| D-pad up / down | Scroll tracks. Hold to repeat |
-| D-pad left / right | Scroll a quarter screen in time. Hold to repeat |
+| Tempo knob | Zoom. It zooms in time at first, always keeping the playhead (or the scrub marker, if one is active) centred on screen. Press the knob to switch between time zoom and track zoom. A short message shows the mode. When lanes are tall enough, track and clip names appear |
+| D-pad up / down | Scroll tracks. Hold to repeat. Lit white only while that direction has more to scroll |
+| D-pad left / right | Scroll a quarter screen in time. Hold to repeat. Lit white only while that direction has more to scroll |
 
-Every other LED goes dark while the mode is on.
+Touching the jog wheel or encoders 1/2 shows a bar at the bottom of the screen
+with the exact playhead position or loop start/length (bars.beats.16th, e.g.
+`97.1.1`, or `16.0.0` for a 16-bar length) — see
+[docs/touch-layer.md](docs/touch-layer.md).
 
-While the song plays, the view scrolls so the playhead stays near the left. It stops following for 2 seconds after you move the view by hand.
-
-The view shows
-the text "Arrangement Mode". The second press closes the view at once.
-
-While the mode is on, the hack uses push-manager's MIDI intercept. Live does not
-see the Push buttons, pads and encoders.
-
-**Status:** milestone 3. A Remote Script inside Live sends the arrangement of the **open** set
-(also unsaved edits) and the playhead to the hack. The whole song fits on the screen. Zoom and
-scroll come next. See [plans/2026-09-24-arrangement-hack.md](plans/2026-09-24-arrangement-hack.md).
-
-The view shows one lane per track, clips in their colours, locators (blue lines), the loop (yellow bar
-on the ruler) and the playhead (white line). When the mode turns on, all button LEDs and the pad
-grid go dark.
+While the song plays, the view scrolls so the playhead stays near the left. It
+stops following for 2 seconds after you move the view by hand.
 
 ## Requirements
 
@@ -62,7 +69,6 @@ The hack talks to the Remote Script over `/tmp/push-hack-arrangement.sock`. Pyth
 
 Without a device, `make preview` writes `build/preview.png` from `testdata/p3.als` (not in git; use your own set).
 
-
 ## Performance and safety
 
 - With a 40-track, 342-clip set, drawing at about 8 frames per second used about 6% of one core in the hack and 4% in push-manager. Memory: 6 MB for the supervisor and about 12 MB for the working process.
@@ -72,10 +78,8 @@ Without a device, `make preview` writes `build/preview.png` from `testdata/p3.al
 
 Not done yet:
 
-- Touch layer: a temporary bar on top of the arrangement when you touch a knob or the jog wheel. Design: [docs/touch-layer.md](docs/touch-layer.md). Add its content whenever a control is added.
-- Loop: toggle and set the loop. Locators: add and jump. Punch in/out. Record. Metronome.
-- Jog step buttons (finer and coarser) and the jog-click play-start marker from the reference script.
+- Touch layer for the other knobs (Volume, Tempo, the other top knobs): built so far for the jog wheel and loop knobs 1/2. Design: [docs/touch-layer.md](docs/touch-layer.md). Add its content whenever a new control is added.
+- Record. Metronome.
+- Jog step buttons (finer and coarser) from the reference script.
 - Editing: nudge, resize, split, duplicate, spacer. These are from the reference script and are outside v1.
 - Send only the visible window for a very huge set (the Remote Script already slows down snapshots on big sets).
-- Install through the catalog (needs a `catalog.json` entry and a new release). Then the boot service is created for you.
-- Docs: `docs/architecture.md`, `docs/protocol.md`, `docs/touch-layer.md`.

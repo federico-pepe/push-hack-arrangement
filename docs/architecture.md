@@ -9,8 +9,8 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 
 1. It accepts a connection on the Unix socket `/tmp/push-hack-arrangement.sock`.
 2. It reads command lines from the hack and applies them (`commands.py`).
-3. About once per second it builds a snapshot of the open set (`snapshot.py`). It sends the snapshot only when it changed.
-4. It sends the playhead position (`pos`) when it changed.
+3. About once per second it builds a snapshot of the open set (`snapshot.py`): tracks, clips, locators, time signature, tempo. It sends the snapshot only when it changed.
+4. It sends the playhead, transport and loop/punch state (`pos`) whenever any of it changed -- every tick, not once a second, so a loop toggle or a knob turn shows up almost at once.
 
 `snapshot.py` and `commands.py` do not import Live. This lets the tests in `tests/` run on any computer.
 
@@ -24,12 +24,14 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 | `midi.go` | Own ALSA port, subscribed to Push 3 (client 16, port 0). Reads every button and dial |
 | `chord.go` | Shift (CC49) + Session (CC51) chord, 500 ms debounce |
 | `mode.go` | Arrangement Mode on/off. ON = display takeover + MIDI intercept. OFF = give both back at once |
-| `controls.go` | Jog (playhead), Volume knob (scroll), Tempo knob (zoom, click to switch), Play, Session (Back to Arrangement), D-pad with repeat |
-| `view.go` | Zoom and scroll state, playhead follow. All values are clamped for the current set |
-| `render.go` | Draws the 960x160 image: ruler, lanes, clips, names, locators, loop, playhead |
-| `source.go` | Connection to the Remote Script, the current set, commands to Live |
+| `controls.go` | Jog wheel (scrub cursor; Shift = real seek), jog press (play-start anchor), Play, Session (Back to Arrangement), Page </> (locator nav), the 3 loop/punch top buttons, loop start/length encoders, Volume knob (scroll), Tempo knob (zoom, click to switch), D-pad with repeat |
+| `view.go` | Zoom and scroll state, playhead follow. Horizontal zoom always pivots on the playhead (or the scrub cursor, if one is active). Tracks whether each D-pad direction can still scroll further (`computeAvailability`) and tells `leds.go`'s `syncDPadLEDs` via a callback (`onScrollAvailability`) after every zoom/scroll. All values are clamped for the current set |
+| `touch.go` | The touch layer: knob/jog-wheel touch shows a status bar over the arrangement. See `docs/touch-layer.md` |
+| `bbs.go` | Bars.beats.16th formatting (`bbsPosition`, `bbsLength`), matching Live's own display |
+| `render.go` | Draws the 960x160 image: ruler, lanes, clips, names, locators, loop (region bar + on/off boundary lines), play-start anchor (triangle), scrub cursor, playhead |
+| `source.go` | Connection to the Remote Script, the current set, commands to Live. Also holds local-only state Live never reports back: the play-start anchor, the selected locator, and the scrub cursor |
 | `model.go` | Data types (Set, Track, Clip, Locator, Loop) |
-| `leds.go` | LED blackout and the few LEDs we light (Play, Session) |
+| `leds.go` | LED blackout and the few LEDs we light (Play, Session, Page </>, the 3 loop/punch buttons, the 4 D-pad directions) |
 | `depcheck.go` | Logs when push-manager or push-display is missing |
 | `als.go`, `colors.go` | Reader for a saved `.als` file. Only for `make preview` and `-set`. Not used on the Push |
 

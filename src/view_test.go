@@ -11,6 +11,7 @@ func viewSet() *Set {
 		s.Tracks = append(s.Tracks, Track{Name: "T", GroupID: -1,
 			Clips: []Clip{{Start: 0, End: 200, Color: 0x5480E4, Name: "clip"}}})
 	}
+	s.Locators = []Locator{{Time: 40, Name: "A"}, {Time: 100, Name: "B"}}
 	return s
 }
 
@@ -21,13 +22,8 @@ func newTestView() (*viewCtl, *Set) {
 	return vc, s
 }
 
-func TestDecodeRel(t *testing.T) {
-	for in, want := range map[uint8]int{0: 0, 1: 1, 5: 5, 63: 63, 127: -1, 120: -8, 64: -64} {
-		if got := decodeRel(in); got != want {
-			t.Errorf("decodeRel(%d)=%d want %d", in, got, want)
-		}
-	}
-}
+// decodeRel itself is core/push3.DecodeRel's own function (tested there,
+// core/push3/encoder_test.go) -- this package only calls it.
 
 func TestZoomHClampsAndKeepsCentre(t *testing.T) {
 	vc, s := newTestView()
@@ -39,17 +35,32 @@ func TestZoomHClampsAndKeepsCentre(t *testing.T) {
 	if v := vc.viewport(s); v.ppb > maxPPB+1e-9 {
 		t.Fatalf("ppb above max: %v", v.ppb)
 	}
-	// centre stays put on a mid zoom
-	vc, s = newTestView()
+	// zoom pivots on the playhead: it stays at screen centre at any zoom level
+	s.Playhead = 90
+	vc = newViewCtl(func() *Set { return s })
+	checkCentred := func() {
+		v := vc.viewport(s)
+		center := v.x0 + vc.span()/2
+		if d := center - s.Playhead; d > 0.5 || d < -0.5 {
+			t.Fatalf("playhead not centred: view centre %v playhead %v", center, s.Playhead)
+		}
+	}
 	vc.zoomH(20)
-	vc.scrollT(50)
-	a := vc.viewport(s)
-	ca := a.x0 + vc.span()/2
+	checkCentred()
 	vc.zoomH(5)
-	b := vc.viewport(s)
-	cb := b.x0 + vc.span()/2
-	if d := ca - cb; d > 0.01 || d < -0.01 {
-		t.Fatalf("centre moved %v -> %v", ca, cb)
+	checkCentred()
+}
+
+func TestZoomHPivotsOnCursorWhenActive(t *testing.T) {
+	s := viewSet()
+	s.Playhead = 10
+	s.HasCursor, s.Cursor = true, 90
+	vc := newViewCtl(func() *Set { return s })
+	vc.zoomH(20)
+	v := vc.viewport(s)
+	center := v.x0 + vc.span()/2
+	if d := center - s.Cursor; d > 0.5 || d < -0.5 {
+		t.Fatalf("must centre on the cursor (90), view centre is at %v", center)
 	}
 }
 
@@ -72,6 +83,64 @@ func TestZoomVAndTrackScroll(t *testing.T) {
 	f := vc.viewport(s).first
 	if max := float64(len(s.Tracks)) - laneAvail()/v.laneH; f > max+1e-9 {
 		t.Fatalf("first %v beyond %v", f, max)
+	}
+}
+
+func TestScrollAvailabilityAtEdges(t *testing.T) {
+	vc, s := newTestView()
+	up, down, left, right := vc.availability(s)
+	if up || down || left || right {
+		t.Fatalf("fit view shows everything: nothing should be scrollable, got %v %v %v %v", up, down, left, right)
+	}
+
+	vc.zoomH(30) // zoom in so there's room to scroll in time
+	up, down, left, right = vc.availability(s)
+	if left {
+		t.Fatal("still at the start: left must be unavailable")
+	}
+	if !right {
+		t.Fatal("zoomed in from the start: right must be available")
+	}
+	vc.scrollT(10000)
+	_, _, _, right = vc.availability(s)
+	if right {
+		t.Fatal("scrolled to the end: right must now be unavailable")
+	}
+
+	vc.zoomV(60) // tall lanes -> room to scroll tracks
+	_, down, _, _ = vc.availability(s)
+	if !down {
+		t.Fatal("zoomed in from the top: down must be available")
+	}
+	vc.scrollTracks(1000)
+	_, down, _, _ = vc.availability(s)
+	if down {
+		t.Fatal("scrolled to the last track: down must now be unavailable")
+	}
+}
+
+func TestScrollAvailabilityCallbackFiresOnMutators(t *testing.T) {
+	vc, s := newTestView()
+	var calls int
+	var lastUp, lastDown, lastLeft, lastRight bool
+	vc.onScrollAvailability(func(up, down, left, right bool) {
+		calls++
+		lastUp, lastDown, lastLeft, lastRight = up, down, left, right
+	})
+	vc.zoomH(1)
+	if calls != 1 {
+		t.Fatalf("zoomH must fire the callback once, got %d", calls)
+	}
+	vc.scrollT(1)
+	vc.scrollPage(1)
+	vc.scrollTracks(1)
+	vc.zoomV(1)
+	if calls != 5 {
+		t.Fatalf("every mutator must fire it, got %d calls", calls)
+	}
+	wantUp, wantDown, wantLeft, wantRight := vc.availability(s)
+	if lastUp != wantUp || lastDown != wantDown || lastLeft != wantLeft || lastRight != wantRight {
+		t.Fatal("callback's last values must match the current availability")
 	}
 }
 

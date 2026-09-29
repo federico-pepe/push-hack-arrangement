@@ -37,4 +37,19 @@ type Set struct {
 	Length      float64 // end of last clip (beats)
 	BeatsPerBar float64 // 0 = 4
 	Overridden  bool    // Session clips override the arrangement (Back to Arrangement lit): draw dimmed
+	PunchIn     bool
+	PunchOut    bool
+
+	// Play-start anchor (jog wheel press). Local only: never comes from Live.
+	HasAnchor bool
+	Anchor    float64
+
+	// Locator the user last jumped to with Page </>. Local only.
+	HasSelLocator bool
+	SelLocator    float64
+
+	// Scrub cursor (plain jog wheel): local only, does not mean Live has
+	// moved. See store.setCursor's doc.
+	HasCursor bool
+	Cursor    float64
 }

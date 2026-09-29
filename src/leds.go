@@ -49,24 +49,63 @@ func resetLit() {
 	ledMu.Unlock()
 }
 
-// syncStateLEDs: Play is green while playing; Session is bright white when Back to Arrangement is available.
+// syncStateLEDs: Play is green while playing; Session is bright white when Back
+// to Arrangement is available. Page left/right are always white -- they
+// navigate locators, not a state -- and the loop/punch buttons follow the
+// transport.
 func syncStateLEDs(playing, bta bool) {
-	play, session := byte(ledPlayWhite), byte(0)
+	play, session := byte(ledWhite), byte(0)
 	if playing {
 		play = ledPlayGreen
 	}
 	if bta {
-		session = ledSessionWhite
+		session = ledWhite
 	}
 	setLED(byte(push3.CCPlay), play)
 	setLED(byte(push3.CCSession), session)
 }
 
+// syncTransportLEDs: the three top-left buttons (Loop, Punch In, Punch Out)
+// are white when off, yellow when on.
+func syncTransportLEDs(loopOn, punchIn, punchOut bool) {
+	v := func(on bool) byte {
+		if on {
+			return ledYellow
+		}
+		return ledWhite
+	}
+	setLED(byte(push3.CCScreenTop1), v(loopOn))
+	setLED(byte(push3.CCScreenTop2), v(punchIn))
+	setLED(byte(push3.CCScreenTop3), v(punchOut))
+}
+
+// syncNavLEDs: Page left/right are always lit white while the mode is on --
+// they move between locators, not a state to reflect.
+func syncNavLEDs() {
+	setLED(byte(push3.CCPageLeft), ledWhite)
+	setLED(byte(push3.CCPageRight), ledWhite)
+}
+
+// syncDPadLEDs: each D-pad direction is white only while it can still scroll
+// further (see viewCtl.computeAvailability), dark at the edge.
+func syncDPadLEDs(up, down, left, right bool) {
+	v := func(on bool) byte {
+		if on {
+			return ledWhite
+		}
+		return 0
+	}
+	setLED(byte(push3.CCDPadUp), v(up))
+	setLED(byte(push3.CCDPadDown), v(down))
+	setLED(byte(push3.CCDPadLeft), v(left))
+	setLED(byte(push3.CCDPadRight), v(right))
+}
+
 // Palette indices chosen on the device.
 const (
-	ledPlayGreen    = 126 // Play while playing
-	ledPlayWhite    = 120 // Play when stopped
-	ledSessionWhite = 120 // Back to Arrangement available (this button has a greyscale LED)
+	ledPlayGreen = 126 // Play while playing
+	ledWhite     = 120 // "on" for a greyscale button (Session, Page, Loop/Punch when off)
+	ledYellow    = 8   // Loop/Punch when on
 )
 
 const (
