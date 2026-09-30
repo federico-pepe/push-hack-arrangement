@@ -4,6 +4,12 @@ Push-hack module for Ableton Push 3: Arrangement view on the Push screen. Go hos
 + (later) a Live Remote Script. Follows the conventions of the other push-hack
 repos (keyboard-visualizer, braids). Plan: `plans/`.
 
+## Push family context
+
+Shared facts for all Push repos (repo map, git identity, `core/` pinning, cross-repo hardware facts):
+
+@~/.claude/push-family.md
+
 ## Rules
 - Git identity in this repo: **Federico P.** `<6317270+federico-pepe@users.noreply.github.com>`. Never the @ableton account.
 - `core` comes from GitHub (`github.com/federico-pepe/ableton-push-hack/core`, tag in `src/go.mod`). No local `replace`.
