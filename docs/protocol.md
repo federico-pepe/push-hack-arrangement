@@ -1,6 +1,13 @@
 # Protocol: Remote Script and hack
 
-Unix socket `/tmp/push-hack-arrangement.sock`. One JSON object per line. Only the hack connects.
+One JSON object per line. Only the hack connects. Where the Remote Script listens depends on the system (`remote-script/transport.py`):
+
+| System | Endpoint |
+|---|---|
+| macOS, Linux | Unix socket `/tmp/push-hack-arrangement.sock`, owner only |
+| Windows | TCP `127.0.0.1:7720`. Python on Windows has no Unix sockets |
+
+The messages are the same on both. A client uses the endpoint of its own system.
 
 ## Live to hack
 

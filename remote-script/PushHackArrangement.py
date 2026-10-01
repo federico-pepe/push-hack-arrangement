@@ -1,5 +1,6 @@
 # PushHackArrangement: read-only bridge. Streams the open Live Set's arrangement
-# to the arrangement hack over a local Unix socket. No controls, no MIDI mapping.
+# to the arrangement hack over a local socket (Unix socket, or TCP on 127.0.0.1
+# on Windows: see transport.py). No controls, no MIDI mapping.
 #
 # hack -> Live: set_time, play_toggle, bta (see commands.py), one JSON per line.
 # Live -> hack, one JSON per line:
@@ -7,16 +8,13 @@
 #   {"t":"pos", time, playing, bta}                        when changed (~10 Hz max)
 
 import json
-import os
-import socket
 import time
 
 from _Framework.ControlSurface import ControlSurface
 
 from .snapshot import snapshot_json, pos_json
 from .commands import apply_commands
-
-SOCK_PATH = "/tmp/push-hack-arrangement.sock"
+from .transport import open_listener, close_listener, endpoint
 SNAPSHOT_EVERY_TICKS = 10        # update_display runs ~10x/s -> check ~1x/s
 BUILD_BUDGET_TICKS_PER_SEC = 200  # big sets: wait (build seconds x 200) ticks, so building uses <= ~5% of the time
 MAX_OUT_BYTES = 8 * 1024 * 1024  # drop a client that cannot keep up
@@ -33,21 +31,15 @@ class PushHackArrangement(ControlSurface):
         self._last_snapshot = None
         self._last_pos = None
         self._open_server()
-        self.log_message("PushHackArrangement alive (socket %s)" % SOCK_PATH)
+        self.log_message("PushHackArrangement alive (%s %s)" % self._ep)
 
     # ---- socket ----
     def _open_server(self):
+        self._ep = endpoint()
         try:
-            if os.path.exists(SOCK_PATH):
-                os.unlink(SOCK_PATH)
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.bind(SOCK_PATH)
-            os.chmod(SOCK_PATH, 0o600)
-            s.listen(2)
-            s.setblocking(False)
-            self._srv = s
+            self._srv, self._ep = open_listener(self._ep)
         except Exception as e:
-            self.log_message("PushHackArrangement: cannot open socket: %s" % e)
+            self.log_message("PushHackArrangement: cannot open %s %s: %s" % (self._ep + (e,)))
             self._srv = None
 
     def _accept(self):
@@ -157,9 +149,7 @@ class PushHackArrangement(ControlSurface):
             self._drop(c)
         try:
             if self._srv is not None:
-                self._srv.close()
-            if os.path.exists(SOCK_PATH):
-                os.unlink(SOCK_PATH)
+                close_listener(self._srv, self._ep)
         except Exception:
             pass
         ControlSurface.disconnect(self)
