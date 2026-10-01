@@ -12,7 +12,9 @@ Every 100 ms, Live calls `update_display`. The script then does four things:
 3. About once per second it builds a snapshot of the open set (`snapshot.py`): tracks, clips, locators, time signature, tempo. It sends the snapshot only when it changed.
 4. It sends the playhead, transport and loop/punch state (`pos`) whenever any of it changed -- every tick, not once a second, so a loop toggle or a knob turn shows up almost at once.
 
-`snapshot.py` and `commands.py` do not import Live. This lets the tests in `tests/` run on any computer.
+`snapshot.py`, `commands.py` and `transport.py` do not import Live. This lets the tests in `tests/` run on any computer. `transport.py` picks where the script listens: a Unix socket on macOS and Linux, TCP on Windows.
+
+Two clients use this script: the hack in this repo (on the Push 3, Linux) and `pta-module-arrangement` (a module for Push Tethered App, with Live on the user's computer). The Windows TCP port exists only for the second one.
 
 ## 2. Go program (`src/`, runs as a normal process)
 

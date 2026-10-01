@@ -15,6 +15,8 @@ Shared facts for all Push repos (repo map, git identity, `core/` pinning, cross-
 - `core` comes from GitHub (`github.com/federico-pepe/ableton-push-hack/core`, tag in `src/go.mod`). No local `replace`.
 - Draw on screen only through push-manager (`pmclient`). Never mmap shm.
 - Screen strings are ASCII only.
+- The Remote Script is shared with `pta-module-arrangement`. Change the protocol here first. Keep new fields optional and the messages the same on every transport. Update `docs/protocol.md` in the same change.
+- A test must never open `/tmp/push-hack-arrangement.sock` on a computer where Live runs: the script deletes an existing socket file before it binds. Give tests their own path.
 - Any exit path must release display takeover and MIDI intercept (`modeCtl.release`).
 - No `/dev/snd` access before `alsaseq.WaitForBootSettle()`.
 - Code comments: caveman skill. Docs: simple-english skill. Update CHANGELOG `[Unreleased]` per notable change.
