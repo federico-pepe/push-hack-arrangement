@@ -7,7 +7,7 @@ The hack has two parts.
 `PushHackArrangement` is a Live MIDI Remote Script. It has no controls and no MIDI mapping.
 Every 100 ms, Live calls `update_display`. The script then does four things:
 
-1. It accepts a connection on the Unix socket `/tmp/push-hack-arrangement.sock`.
+1. It accepts a connection on the Unix socket `/tmp/push-hack-arrangement.sock` (TCP `127.0.0.1:7720` on Windows, see `docs/protocol.md`).
 2. It reads command lines from the hack and applies them (`commands.py`).
 3. About once per second it builds a snapshot of the open set (`snapshot.py`): tracks, clips, locators, time signature, tempo. It sends the snapshot only when it changed.
 4. It sends the playhead, transport and loop/punch state (`pos`) whenever any of it changed -- every tick, not once a second, so a loop toggle or a knob turn shows up almost at once.
