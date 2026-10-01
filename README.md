@@ -68,6 +68,8 @@ hack and gives the screen and MIDI back.
 
 The hack talks to the Remote Script over `/tmp/push-hack-arrangement.sock`. Python tests: `make pytest`.
 
+The same Remote Script also serves `pta-module-arrangement`, the version for a tethered Push (private repo). On Windows it listens on TCP `127.0.0.1:7720` instead. See `docs/protocol.md`.
+
 Without a device, `make preview` writes `build/preview.png` from `testdata/p3.als` (not in git; use your own set).
 
 ## Performance and safety
