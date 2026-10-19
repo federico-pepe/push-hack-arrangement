@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.8-alpha] - 2026-10-19
+
 ### Changed
 - Frames go to push-manager as raw pixels (`pmclient.Push`) instead of PNG, about 10 times faster. An older push-manager without the raw route still gets PNG. Needs `core` v0.4.1.
 
