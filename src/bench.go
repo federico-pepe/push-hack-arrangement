@@ -35,7 +35,7 @@ func runBench(pm *pmclient.Client, s *Set, vc *viewCtl, secs int) error {
 		cp := *s
 		cp.Playhead = play
 		var img image.Image = renderArrangement(&cp, vc.viewport(&cp))
-		if err := pm.PushImage(img); err != nil {
+		if err := pm.Push(img); err != nil {
 			return err
 		}
 		frames++

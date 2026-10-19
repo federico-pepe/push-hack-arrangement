@@ -29,7 +29,7 @@ func newModeCtl(pm *pmclient.Client, frame func() image.Image) *modeCtl {
 }
 
 func (m *modeCtl) push() {
-	if err := m.pm.PushImage(m.frame()); err != nil {
+	if err := m.pm.Push(m.frame()); err != nil {
 		log.Printf("display: push frame: %v", err)
 	}
 }
