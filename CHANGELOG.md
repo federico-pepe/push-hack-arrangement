@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.0.7-alpha] - 2026-10-19
+
+### Changed
+- Builds against `core` v0.3.0.
+
 ### Added
 - The Remote Script listens on TCP `127.0.0.1:7720` on Windows, where Python has no Unix sockets. macOS and Linux keep the Unix socket. The messages do not change. Needed by `pta-module-arrangement` on Windows. See `remote-script/transport.py` and `docs/protocol.md`.
 
