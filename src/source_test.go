@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -180,5 +185,144 @@ func TestSelLocator(t *testing.T) {
 	s, _, _ := st.get()
 	if !s.HasSelLocator || s.SelLocator != 4 {
 		t.Fatalf("set %+v", s)
+	}
+}
+
+func TestDecodeLiveEvents(t *testing.T) {
+	snap := `{"t":"event","topic":"arrangement","data":{"tracks":[{"name":"Kick","kind":"midi","color":1,"group":-1,"clips":[[0,8,"A",2]]}],"locators":[],"sig":[4,4],"tempo":120}}`
+	m, ok := decodeLive([]byte(snap))
+	if !ok || m.T != "snapshot" {
+		t.Fatalf("snapshot not decoded: %+v %v", m, ok)
+	}
+	if s := setFromSnapshot(&m); len(s.Tracks) != 1 || s.Tracks[0].Clips[0].End != 8 {
+		t.Fatalf("set %+v", s)
+	}
+	pos := `{"t":"event","topic":"position","data":{"time":7.5,"playing":true,"bta":false,"loop_on":true,"loop_start":8,"loop_length":16,"punch_in":false,"punch_out":true}}`
+	m, ok = decodeLive([]byte(pos))
+	if !ok || m.T != "pos" || m.Time != 7.5 || !m.Playing || !m.LoopOn || m.LoopLength != 16 || !m.PunchOut {
+		t.Fatalf("pos %+v %v", m, ok)
+	}
+}
+
+func TestDecodeLiveRepliesAndNoise(t *testing.T) {
+	for _, line := range []string{
+		`{"ok":true,"id":1,"data":{"protocol":1}}`,
+		`{"ok":true,"id":2,"data":{"topics":["arrangement","position"]}}`,
+		`{"ok":true}`,                                      // reply to a command
+		`{"ok":false,"error":"failed"}`,                    // a failed command must not drop the link
+		`{"t":"event","topic":"tempo","data":{"tempo":1}}`, // a topic we did not ask for
+		`not json`,
+	} {
+		if m, ok := decodeLive([]byte(line)); ok {
+			t.Errorf("%s: got %+v", line, m)
+		}
+	}
+	m, ok := decodeLive([]byte(`{"ok":false,"id":2,"error":"unknown_topic"}`))
+	if !ok || m.T != "refused" || m.Error != "unknown_topic" {
+		t.Fatalf("refused subscribe: %+v %v", m, ok)
+	}
+	if m, ok := decodeLive([]byte(`{"ok":false,"id":1,"error":"x"}`)); !ok || m.T != "refused" {
+		t.Fatalf("refused hello: %+v %v", m, ok)
+	}
+}
+
+func TestRequestMapsEveryCommand(t *testing.T) {
+	cases := []struct {
+		in      map[string]any
+		ns, cmd string
+		key     string
+		wantVal any
+	}{
+		{map[string]any{"t": "set_time", "v": 4.5}, "transport", "set_time", "v", 4.5},
+		{map[string]any{"t": "set_loop", "start": 8.0, "length": 16.0}, "transport", "set_loop", "length", 16.0},
+		{map[string]any{"t": "play_toggle"}, "transport", "play_toggle", "", nil},
+		{map[string]any{"t": "bta"}, "arrangement", "bta", "", nil},
+		{map[string]any{"t": "loop_toggle"}, "arrangement", "loop_toggle", "", nil},
+		{map[string]any{"t": "punch_in_toggle"}, "arrangement", "punch_in_toggle", "", nil},
+		{map[string]any{"t": "punch_out_toggle"}, "arrangement", "punch_out_toggle", "", nil},
+	}
+	for _, c := range cases {
+		got, ok := request(c.in)
+		if !ok || got["ns"] != c.ns || got["cmd"] != c.cmd {
+			t.Errorf("%v -> %v %v", c.in, got, ok)
+			continue
+		}
+		if _, has := got["t"]; has {
+			t.Errorf("%v: old key t left in %v", c.in, got)
+		}
+		if c.key != "" && got[c.key] != c.wantVal {
+			t.Errorf("%v: %s = %v", c.in, c.key, got[c.key])
+		}
+	}
+	if _, ok := request(map[string]any{"t": "format_disk"}); ok {
+		t.Error("an unknown command was passed on")
+	}
+}
+
+// A fake PushHack on a socket of its own: the real path is never opened.
+func TestRunLiveSourceHandshakeAndStream(t *testing.T) {
+	dir, err := os.MkdirTemp("", "ph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	old := liveSocketPath
+	liveSocketPath = filepath.Join(dir, "s.sock")
+	defer func() { liveSocketPath = old }()
+
+	ln, err := net.Listen("unix", liveSocketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	got := make(chan string, 8)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		rd := bufio.NewReader(c)
+		for i := 0; i < 2; i++ {
+			l, _ := rd.ReadString('\n')
+			got <- l
+		}
+		c.Write([]byte(`{"t":"event","topic":"arrangement","data":{"tracks":[],"locators":[],"sig":[4,4],"tempo":120}}` + "\n"))
+		c.Write([]byte(`{"t":"event","topic":"position","data":{"time":3,"playing":true}}` + "\n"))
+		l, _ := rd.ReadString('\n') // a command from the hack
+		got <- l
+	}()
+
+	st := &store{}
+	changed := make(chan struct{}, 8)
+	stop := make(chan struct{})
+	defer close(stop)
+	go runLiveSource(st, func() { changed <- struct{}{} }, stop)
+
+	if l := <-got; !strings.Contains(l, `"hello"`) {
+		t.Fatalf("first line %q", l)
+	}
+	if l := <-got; !strings.Contains(l, `"subscribe"`) || !strings.Contains(l, `"arrangement"`) || !strings.Contains(l, `"position"`) {
+		t.Fatalf("second line %q", l)
+	}
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case <-changed:
+		case <-deadline:
+			t.Fatal("no data reached the store")
+		}
+		if ph, playing := st.pos(); playing && ph == 3 {
+			break
+		}
+	}
+	sendCmd(map[string]any{"t": "play_toggle"})
+	select {
+	case l := <-got:
+		if !strings.Contains(l, `"ns":"transport"`) || !strings.Contains(l, `"cmd":"play_toggle"`) {
+			t.Fatalf("command line %q", l)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("command never arrived")
 	}
 }

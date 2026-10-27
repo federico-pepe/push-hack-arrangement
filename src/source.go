@@ -1,8 +1,11 @@
 package main
 
-// Where the arrangement comes from: the PushHackArrangement Remote Script
-// running inside Live. It streams the OPEN set (also unsaved edits) over a
-// local Unix socket, one JSON per line. See remote-script/.
+// Where the arrangement comes from: the PushHack Remote Script running inside
+// Live (ships with Push Hack). It serves the OPEN set (also unsaved edits) over a
+// local Unix socket, one JSON per line. We subscribe to its "arrangement" and
+// "position" topics. Messages are turned into the old snapshot / pos shape here,
+// and commands go the other way (see sendCmd), so the rest of the hack does not
+// know about the protocol.
 
 import (
 	"bufio"
@@ -14,7 +17,8 @@ import (
 	"time"
 )
 
-const liveSocketPath = "/tmp/push-hack-arrangement.sock"
+// liveSocketPath is a var so a test can use its own path.
+var liveSocketPath = "/tmp/push-hack.sock"
 
 const msgNotConnected = "Remote Script not connected"
 
@@ -202,7 +206,7 @@ func (st *store) setSelLocator(t float64) {
 	st.hasSelLocator, st.selLocator = true, t
 }
 
-const hintActivate = "Enable PushHackArrangement in Live Preferences (control surface, Input/Output None), restart Live"
+const hintActivate = "Enable PushHack in Live Preferences (control surface, Input/Output None), restart Live"
 
 // wire format ---------------------------------------------------------------
 
@@ -225,7 +229,16 @@ func (c *wireClip) UnmarshalJSON(b []byte) error {
 }
 
 type wireMsg struct {
-	T      string `json:"t"`
+	T string `json:"t"`
+
+	// Envelope of the PushHack protocol: an event carries a topic and data, a
+	// reply carries ok. See readLive.
+	ID    int             `json:"id"`
+	OK    *bool           `json:"ok"`
+	Error string          `json:"error"`
+	Topic string          `json:"topic"`
+	Data  json.RawMessage `json:"data"`
+
 	Tracks []struct {
 		Name  string     `json:"name"`
 		Kind  string     `json:"kind"`
@@ -291,6 +304,11 @@ func runLiveSource(st *store, onChange func(), stop <-chan struct{}) {
 	for {
 		conn, err := net.DialTimeout("unix", liveSocketPath, 2*time.Second)
 		if err == nil {
+			// hello and subscribe go out before anything else. The replies come
+			// back through readLive.
+			_, err = conn.Write([]byte(handshake))
+		}
+		if err == nil {
 			link.set(conn)
 			log.Print("Remote Script connected")
 			st.putMessage("Waiting for Live Set data", "")
@@ -309,6 +327,10 @@ func runLiveSource(st *store, onChange func(), stop <-chan struct{}) {
 	}
 }
 
+// handshake: ids 1 and 2 are matched in readLive.
+const handshake = `{"id":1,"cmd":"hello"}` + "\n" +
+	`{"id":2,"cmd":"subscribe","topics":["arrangement","position"]}` + "\n"
+
 func readLive(conn net.Conn, st *store, onChange func(), stop <-chan struct{}) {
 	go func() { <-stop; conn.Close() }()
 	r := bufio.NewReaderSize(conn, 1<<20)
@@ -317,9 +339,8 @@ func readLive(conn net.Conn, st *store, onChange func(), stop <-chan struct{}) {
 		if err != nil {
 			return
 		}
-		var m wireMsg
-		if err := json.Unmarshal(line, &m); err != nil {
-			log.Printf("bad message: %v", err)
+		m, ok := decodeLive(line)
+		if !ok {
 			continue
 		}
 		switch m.T {
@@ -331,8 +352,48 @@ func readLive(conn net.Conn, st *store, onChange func(), stop <-chan struct{}) {
 		case "pos":
 			st.putPos(m.Time, m.Playing, m.BTA, m.LoopOn, m.LoopStart, m.LoopLength, m.PunchIn, m.PunchOut)
 			onChange()
+		case "refused":
+			// Subscribe failed: a PushHack too old to have these topics.
+			log.Printf("Remote Script refused the subscription: %s", m.Error)
+			st.putMessage("PushHack Remote Script is too old", hintActivate)
+			onChange()
+			return
 		}
 	}
+}
+
+// decodeLive turns one line from PushHack into a wireMsg whose T says what
+// it is: "snapshot", "pos", "refused", or "" for a reply we do not need.
+func decodeLive(line []byte) (wireMsg, bool) {
+	var m wireMsg
+	if err := json.Unmarshal(line, &m); err != nil {
+		log.Printf("bad message: %v", err)
+		return m, false
+	}
+	switch {
+	case m.T == "event" && m.Topic == "arrangement":
+		var d wireMsg
+		if err := json.Unmarshal(m.Data, &d); err != nil {
+			log.Printf("bad snapshot: %v", err)
+			return m, false
+		}
+		d.T = "snapshot"
+		return d, true
+	case m.T == "event" && m.Topic == "position":
+		var d wireMsg
+		if err := json.Unmarshal(m.Data, &d); err != nil {
+			log.Printf("bad position: %v", err)
+			return m, false
+		}
+		d.T = "pos"
+		return d, true
+	case m.OK != nil && !*m.OK:
+		if m.ID == 1 || m.ID == 2 { // hello or subscribe; a failed command is only logged
+			return wireMsg{T: "refused", Error: m.Error}, true
+		}
+		log.Printf("Remote Script refused a command: %s", m.Error)
+	}
+	return m, false
 }
 
 // link: the current connection, for commands to Live.
@@ -349,9 +410,36 @@ func (l *liveLink) set(c net.Conn) {
 	l.mu.Unlock()
 }
 
+// request turns a command of this hack ({"t": "set_time", "v": 12}) into the
+// PushHack form ({"ns": "transport", "cmd": "set_time", "v": 12}). ok is false
+// for a command we do not know.
+func request(m map[string]any) (map[string]any, bool) {
+	t, _ := m["t"].(string)
+	ns := map[string]string{
+		"set_time": "transport", "set_loop": "transport", "play_toggle": "transport",
+		"bta": "arrangement", "loop_toggle": "arrangement",
+		"punch_in_toggle": "arrangement", "punch_out_toggle": "arrangement",
+	}[t]
+	if ns == "" {
+		return nil, false
+	}
+	out := map[string]any{"ns": ns, "cmd": t}
+	for k, v := range m {
+		if k != "t" {
+			out[k] = v
+		}
+	}
+	return out, true
+}
+
 // sendCmd sends one command line to the Remote Script. Dropped if not connected.
 func sendCmd(m map[string]any) {
-	b, err := json.Marshal(m)
+	req, ok := request(m)
+	if !ok {
+		log.Printf("unknown command %v", m["t"])
+		return
+	}
+	b, err := json.Marshal(req)
 	if err != nil {
 		return
 	}

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Push-hack module for Ableton Push 3: Arrangement view on the Push screen. Go host
-+ (later) a Live Remote Script. Follows the conventions of the other push-hack
+Push-hack module for Ableton Push 3: Arrangement view on the Push screen. Go host.
+It reads Live through the shared PushHack Remote Script (in `ableton-push-hack`). Follows the conventions of the other push-hack
 repos (keyboard-visualizer, braids). Plan: `plans/`.
 
 ## Push family context
@@ -15,8 +15,8 @@ Shared facts for all Push repos (repo map, git identity, `core/` pinning, cross-
 - `core` comes from GitHub (`github.com/federico-pepe/ableton-push-hack/core`, tag in `src/go.mod`). No local `replace`.
 - Draw on screen only through push-manager (`pmclient`). Never mmap shm.
 - Screen strings are ASCII only.
-- The Remote Script is shared with `pta-module-arrangement`. Change the protocol here first. Keep new fields optional and the messages the same on every transport. Update `docs/protocol.md` in the same change.
-- A test must never open `/tmp/push-hack-arrangement.sock` on a computer where Live runs: the script deletes an existing socket file before it binds. Give tests their own path.
+- Live data comes from the PushHack Remote Script (`remote-script/PushHack/` in `ableton-push-hack`), topics `arrangement` and `position`. This repo has no script of its own. A change to a topic goes into `ableton-push-hack` first. `docs/protocol.md` says which topics this hack uses.
+- A test must never open `/tmp/push-hack.sock` on a computer where Live runs: the script deletes an existing socket file before it binds. Tests set `liveSocketPath` to their own path.
 - Any exit path must release display takeover and MIDI intercept (`modeCtl.release`).
 - No `/dev/snd` access before `alsaseq.WaitForBootSettle()`.
 - Code comments: caveman skill. Docs: simple-english skill. Update CHANGELOG `[Unreleased]` per notable change.
@@ -30,6 +30,6 @@ Release: bump `hack.json` version, tag `vX.Y.Z-alpha`, push tag (workflow builds
 - Push buttons: Session (CC51) has a greyscale LED, so use palette 120 for "on". Play is RGB (white 120, green 126).
 - Live repaints LEDs after commands (Play, Back to Arrangement). `burstLEDs` repeats the blackout for about 1 s to hide it.
 - Set the LED colour of Play at once on a press; do not wait for Live's answer.
-- Deploy by hand: `scripts/deploy.sh` (needs a terminal). Without one: stop the process, `scp` the binary and `remote-script/*.py`, start it in the background. Restart Live after changing the Remote Script.
+- Deploy by hand: `scripts/deploy.sh` (needs a terminal). Without one: stop the process, `scp` the binary, start it in the background.
 - Docs: `docs/architecture.md`, `docs/protocol.md`, `docs/touch-layer.md` (planned touch layer). Plan and status: `plans/`.
 - When you add a control: update the README controls table and the touch-layer table in `docs/touch-layer.md`.
