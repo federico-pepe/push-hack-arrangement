@@ -1,67 +1,63 @@
-# Protocol: Remote Script and hack
+# Protocol: PushHack Remote Script and the hack
 
-One JSON object per line. Only the hack connects. Where the Remote Script listens depends on the system (`remote-script/transport.py`):
+The hack talks to the PushHack Remote Script (in `ableton-push-hack`, `remote-script/PushHack/`).
+One JSON object per line. The full protocol is in `plans/2026-10-27-pushhack-shared-remote-script.md`
+in that repo. This page lists what this hack uses.
 
-| System | Endpoint |
-|---|---|
-| macOS, Linux | Unix socket `/tmp/push-hack-arrangement.sock`, owner only |
-| Windows | TCP `127.0.0.1:7720`. Python on Windows has no Unix sockets |
+## Endpoint
 
-The messages are the same on both. A client uses the endpoint of its own system.
+Unix socket `/tmp/push-hack.sock` (owner only). Python in Live on Windows has no Unix sockets;
+`pta-module-arrangement` uses TCP `127.0.0.1:7704` there.
 
-## Live to hack
-
-`snapshot`: sent on connect and when the arrangement changes (about once a second at most).
+## Start
 
 ```json
-{"t":"snapshot",
+{"id":1,"cmd":"hello"}
+{"id":2,"cmd":"subscribe","topics":["arrangement","position"]}
+```
+
+A reply with `"ok":false` for id 1 or 2 means the script is too old. The script then sends one event
+for each topic, and again each time the value changes.
+
+## Events (Live to hack)
+
+`arrangement`: at most about once a second.
+
+```json
+{"t":"event","topic":"arrangement","data":{
  "tracks":[{"name":"Kick","kind":"midi","color":16711680,"group":0,
             "clips":[[0.0, 8.0, "Clip name", 5539044]]}],
  "locators":[{"time":4.0,"name":"Drop"}],
- "sig":[4,4], "tempo":124.0}
+ "sig":[4,4], "tempo":124.0}}
 ```
 
 - `kind`: `midi`, `audio` or `group`.
 - `group`: index of the parent group track, or -1.
 - A clip is `[start, end, name, color]`. Times are in beats. Colors are `0xRRGGBB` as a number.
 - Return tracks are not sent.
-- No loop or punch state here -- see `pos` below. A snapshot is built at most once a
-  second; `pos` runs every tick, so a loop toggle shows up almost at once instead of
-  waiting for the next snapshot.
+- No loop or punch state here. It is in `position`, which runs every tick.
 
-`pos`: sent whenever any of these values changes (up to once per Live tick, ~100ms).
+`position`: whenever any field changes.
 
 ```json
-{"t":"pos","time":12.5,"playing":true,"bta":false,
+{"t":"event","topic":"position","data":{"time":12.5,"playing":true,"bta":false,
  "loop_on":true,"loop_start":8.0,"loop_length":16.0,
- "punch_in":false,"punch_out":false}
+ "punch_in":false,"punch_out":false}}
 ```
 
-- `bta` is true when Session clips override the arrangement (the Back to Arrangement button is lit in Live).
-- `loop_on`/`loop_start`/`loop_length` mirror `song.loop`/`loop_start`/`loop_length`.
-- `punch_in`/`punch_out` mirror `song.punch_in`/`punch_out`.
+`bta` is true when a track is off the arrangement, so Back to Arrangement is available.
 
-## Hack to Live
+## Commands (hack to Live)
 
 | Command | Effect |
 |---|---|
-| `{"t":"set_time","v":<beats>}` | Move the playhead (a real seek -- see below) |
-| `{"t":"play_toggle"}` | Start playing, or stop if playing |
-| `{"t":"bta"}` | Back to Arrangement (`song.back_to_arranger = 0`) |
-| `{"t":"loop_toggle"}` | Flip `song.loop` |
-| `{"t":"punch_in_toggle"}` | Flip `song.punch_in` |
-| `{"t":"punch_out_toggle"}` | Flip `song.punch_out` |
-| `{"t":"set_loop","start":<beats>,"length":<beats>}` | Move/resize the loop |
+| `{"ns":"transport","cmd":"set_time","v":<beats>}` | Move the playhead (a real seek) |
+| `{"ns":"transport","cmd":"play_toggle"}` | Start playing, or stop if playing |
+| `{"ns":"arrangement","cmd":"bta"}` | Back to Arrangement (`song.back_to_arranger = 0`) |
+| `{"ns":"arrangement","cmd":"loop_toggle"}` | Flip `song.loop` |
+| `{"ns":"arrangement","cmd":"punch_in_toggle"}` | Flip `song.punch_in` |
+| `{"ns":"arrangement","cmd":"punch_out_toggle"}` | Flip `song.punch_out` |
+| `{"ns":"transport","cmd":"set_loop","start":<beats>,"length":<beats>}` | Move or resize the loop |
 
-`set_time` and `set_loop` are coalesced (`commands.py`'s `COALESCED`): if several of
-the same kind arrive in one tick (the jog wheel or a loop knob can send many), only
-the last one is applied. Every other command applies in the order it arrived.
-
-Unknown commands are ignored.
-
-## What does NOT go over this socket
-
-The hack's plain jog wheel (no Shift) moves a "scrub cursor" -- purely local state,
-so you can look around the timeline without an audible jump in Live's real playback.
-Nothing is sent for that. Only Shift+jog, Page </> (locator jump) and the Play-anchor
-jump send `set_time` -- see `controls.go`'s doc comment and `docs/architecture.md`.
+Each command gets a reply (`{"ok":true}`). The hack ignores it. A failed command gets `"ok":false` and
+a short `error`; the hack logs it and keeps the connection.

@@ -2,19 +2,21 @@
 
 The hack has two parts.
 
-## 1. Remote Script (`remote-script/`, runs inside Live)
+## 1. Remote Script (not in this repo)
 
-`PushHackArrangement` is a Live MIDI Remote Script. It has no controls and no MIDI mapping.
-Every 100 ms, Live calls `update_display`. The script then does four things:
+The hack reads Live through the **PushHack** Remote Script, which ships with Push Hack
+(`remote-script/PushHack/` in `ableton-push-hack`). This hack used to have its own script,
+`PushHackArrangement`. That script is gone from this repo.
 
-1. It accepts a connection on the Unix socket `/tmp/push-hack-arrangement.sock` (TCP `127.0.0.1:7720` on Windows, see `docs/protocol.md`).
-2. It reads command lines from the hack and applies them (`commands.py`).
-3. About once per second it builds a snapshot of the open set (`snapshot.py`): tracks, clips, locators, time signature, tempo. It sends the snapshot only when it changed.
-4. It sends the playhead, transport and loop/punch state (`pos`) whenever any of it changed -- every tick, not once a second, so a loop toggle or a knob turn shows up almost at once.
+The hack connects to the Unix socket `/tmp/push-hack.sock`, sends `hello` and `subscribe`, and gets
+two topics:
 
-`snapshot.py`, `commands.py` and `transport.py` do not import Live. This lets the tests in `tests/` run on any computer. `transport.py` picks where the script listens: a Unix socket on macOS and Linux, TCP on Windows.
+- `arrangement`: a snapshot of the open set (tracks, clips, locators, time signature, tempo). The script builds it about once a second at most and sends it only when it changed. On a big set it waits longer between builds.
+- `position`: the playhead, transport and loop/punch state. It is sent every tick it changes, so a loop toggle or a knob turn shows up almost at once.
 
-Two clients use this script: the hack in this repo (on the Push 3, Linux) and `pta-module-arrangement` (a module for Push Tethered App, with Live on the user's computer). The Windows TCP port exists only for the second one.
+Commands go the other way: `set_time`, `set_loop` and `play_toggle` in the `transport` namespace, and `bta`, `loop_toggle`, `punch_in_toggle` and `punch_out_toggle` in `arrangement`. `source.go` turns them from the shape the rest of the hack uses.
+
+Two clients use the script: this hack (on the Push 3, Linux) and `pta-module-arrangement` (a module for Push Tethered App, with Live on the user's computer).
 
 ## 2. Go program (`src/`, runs as a normal process)
 

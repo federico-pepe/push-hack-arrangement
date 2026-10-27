@@ -52,10 +52,11 @@ stops following for 2 seconds after you move the view by hand.
 ## Requirements
 
 - push-manager and push-display installed and running on the Push.
-- The PushHackArrangement Remote Script. It is in `remote-script/` and `scripts/deploy.sh` copies it to
-  Live's User Library. Enable it once: Live Preferences, a free control-surface slot, select
-  `PushHackArrangement`, Input and Output = None. Then restart Live. Live's `Log.txt` should show
-  "PushHackArrangement alive".
+- The PushHack Remote Script. It comes with Push Hack (`install.sh` or the Push Hack update puts it in
+  Live's User Library). Enable it once: Live Preferences, a free control-surface slot, select
+  `PushHack`, Input and Output = None. Then restart Live. Live's `Log.txt` should show
+  "PushHack alive". Push Manager's System page shows if it runs.
+- If the old `PushHackArrangement` script is still in the User Library, remove it (System page, Remove).
 
 ## Try it
 
@@ -66,9 +67,9 @@ scripts/deploy.sh            # builds, copies to push.local, runs in the foregro
 Press Shift + Session on the Push. Press it again to switch off. Ctrl+C stops the
 hack and gives the screen and MIDI back.
 
-The hack talks to the Remote Script over `/tmp/push-hack-arrangement.sock`. Python tests: `make pytest`.
+The hack talks to the Remote Script over `/tmp/push-hack.sock`. Tests: `make test`.
 
-The same Remote Script also serves `pta-module-arrangement`, the version for a tethered Push (private repo). On Windows it listens on TCP `127.0.0.1:7720` instead. See `docs/protocol.md`.
+The same Remote Script also serves `pta-module-arrangement`, the version for a tethered Push (private repo). See `docs/protocol.md`.
 
 Without a device, `make preview` writes `build/preview.png` from `testdata/p3.als` (not in git; use your own set).
 

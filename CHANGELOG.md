@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+- The hack reads Live through the shared PushHack Remote Script (`/tmp/push-hack.sock`, topics `arrangement` and `position`) and no longer has its own `PushHackArrangement` script. The old script is removed from this repo, and `hack.json` no longer installs it. Install Push Hack with PushHack (a release after 0.1.15-alpha), select **PushHack** in a control-surface slot in Live, restart Live, and remove the old `PushHackArrangement` from the User Library (Push Manager, System page).
+- `docs/protocol.md` now lists the PushHack topics and commands this hack uses.
+
 ## [0.0.8-alpha] - 2026-10-19
 
 ### Changed
