@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"sync"
 	"testing"
@@ -9,7 +10,7 @@ import (
 
 func testInfo() touchInfo {
 	return touchInfo{
-		cols: []overlayCol{{col: 0, button: "Loop ON", name: "Loop Start", value: "1.1.1"}},
+		cols: []widgets.HeaderCol{{Col: 0, Label: "Loop", Name: "Loop Start", Value: "1.1.1"}},
 		text: map[uint8]string{
 			noteTempoTouch: "Zoom", noteVolumeTouch: "View", noteJogTouch: "PLAYHEAD 1.1.1", noteEncoder1Touch: "LOOP START 1.1.1",
 		},

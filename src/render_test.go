@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"image/color"
 	"testing"
 )
@@ -160,7 +161,7 @@ func TestTouchOverlayDimsAndDrawsText(t *testing.T) {
 	s := testSet()
 	plain := renderArrangement(s, fitView(s))
 	vp := fitView(s)
-	vp.overlay = []overlayCol{{col: 0, button: "Loop", toggle: true, buttonOn: true, name: "Loop Start", value: "1.1.1"}}
+	vp.overlay = []widgets.HeaderCol{{Col: 0, Label: "Loop", Toggle: true, On: true, Name: "Loop Start", Value: "1.1.1"}}
 	over := renderArrangement(s, vp)
 	// a pixel far from the text must be darker
 	a, b := plain.NRGBAAt(900, 100), over.NRGBAAt(900, 100)

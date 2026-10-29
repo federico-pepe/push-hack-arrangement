@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/federico-pepe/ableton-push-hack/core/alsaseq"
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/pmclient"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 )
@@ -96,10 +97,10 @@ func main() {
 			zoom = fmt.Sprintf("Zoom Tracks: %d tracks", tracks)
 		}
 		return touchInfo{
-			cols: []overlayCol{
-				{col: 0, button: "Loop", toggle: true, buttonOn: loopOn, name: "Loop Start", value: bbsPosition(loopStart, bpb)},
-				{col: 1, button: "Punch In", toggle: true, buttonOn: punchIn, name: "Loop Length", value: bbsLength(loopLength, bpb)},
-				{col: 2, button: "Punch Out", toggle: true, buttonOn: punchOut},
+			cols: []widgets.HeaderCol{
+				{Col: 0, Label: "Loop", Toggle: true, On: loopOn, Name: "Loop Start", Value: bbsPosition(loopStart, bpb)},
+				{Col: 1, Label: "Punch In", Toggle: true, On: punchIn, Name: "Loop Length", Value: bbsLength(loopLength, bpb)},
+				{Col: 2, Label: "Punch Out", Toggle: true, On: punchOut},
 			},
 			text: map[uint8]string{
 				noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 )
 
@@ -50,20 +51,10 @@ func isButtonNote(n uint8) bool { return n >= noteButton1 && n <= noteButton3 }
 
 func isEncoderNote(n uint8) bool { return n <= 7 }
 
-// overlayCol: one column of the touch overlay. Like Live's own header, it
-// shows the top button's function (button), then the encoder's name and value.
-type overlayCol struct {
-	col         int
-	button      string // top button label, e.g. "Loop"
-	toggle      bool   // the button is an on/off switch: draw an On/Off box after the label
-	buttonOn    bool
-	name, value string
-}
-
 // touchInfo: everything the layer can show, computed fresh at render time.
 type touchInfo struct {
-	cols []overlayCol     // shown together when any encoder is touched
-	text map[uint8]string // one line per control: value text (Tempo, Volume, jog, Encoders 1/2)
+	cols []widgets.HeaderCol // shown together when any encoder is touched
+	text map[uint8]string    // one line per control: value text (Tempo, Volume, jog, Encoders 1/2)
 }
 
 type touchLayer struct {
@@ -177,8 +168,8 @@ func (t *touchLayer) onTurn(cc uint8) {
 
 // touchView: what to draw right now.
 type touchView struct {
-	cols []overlayCol // header columns (dim the screen)
-	bar  []string     // bottom bar: values of controls being turned, and the jog wheel
+	cols []widgets.HeaderCol // header columns (dim the screen)
+	bar  []string            // bottom bar: values of controls being turned, and the jog wheel
 }
 
 // view: freshly computed, zero value if nothing is touched. A touched control
