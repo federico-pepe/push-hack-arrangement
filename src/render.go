@@ -62,14 +62,13 @@ func rgb(c uint32) color.NRGBA {
 
 // viewport: what part of the arrangement is on screen.
 type viewport struct {
-	x0           float64      // time at left edge of the clip area (beats)
-	ppb          float64      // pixels per beat
-	laneH        float64      // pixels per track lane
-	first        float64      // first visible track (fractional)
-	gutter       int          // width of the track-name column (0 = none)
-	toastLines   []string     // message box lines (a toast), nil = none
-	overlay      []overlayCol // touch layer header columns, nil = none
-	overlayLines []string     // touch layer Tempo / Volume lines, nil = none
+	x0         float64      // time at left edge of the clip area (beats)
+	ppb        float64      // pixels per beat
+	laneH      float64      // pixels per track lane
+	first      float64      // first visible track (fractional)
+	gutter     int          // width of the track-name column (0 = none)
+	toastLines []string     // message box lines (a toast), nil = none
+	overlay    []overlayCol // touch layer header columns, nil = none
 }
 
 // fitView shows the whole song, every track.
@@ -230,8 +229,8 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		fill(img, x, 0, 2, screenH, v.gutter, 0, colPlay)
 	}
 
-	if len(v.overlay) > 0 || len(v.overlayLines) > 0 {
-		drawTouchOverlay(img, v.overlay, v.overlayLines)
+	if len(v.overlay) > 0 {
+		drawTouchOverlay(img, v.overlay)
 	}
 	if len(v.toastLines) > 0 {
 		drawToast(img, v.toastLines)
@@ -262,8 +261,8 @@ func dimImage(img *image.NRGBA, f float64) {
 
 // drawTouchOverlay: dims the whole frame, then draws, like Live's own header,
 // each column's button function, encoder name and value, left-aligned at the
-// top. Tempo / Volume lines go bottom left, big, one above the other.
-func drawTouchOverlay(img *image.NRGBA, cols []overlayCol, lines []string) {
+// top.
+func drawTouchOverlay(img *image.NRGBA, cols []overlayCol) {
 	dimImage(img, overlayDim)
 	colW := screenW / overlayCols
 	for _, c := range cols {
@@ -281,9 +280,6 @@ func drawTouchOverlay(img *image.NRGBA, cols []overlayCol, lines []string) {
 			text.Draw(img, x, 36, text.Truncate(c.name, (colW-12)/7), colText)
 			text.Draw(img, x, 52, text.Truncate(c.value, (colW-12)/7), colPlay)
 		}
-	}
-	for i, l := range lines {
-		drawHint(img, 8, screenH-toastBarH-8-i*16, l)
 	}
 }
 
@@ -357,10 +353,6 @@ func (s *Set) bpb() float64 {
 		return s.BeatsPerBar
 	}
 	return 4
-}
-
-func drawHint(img *image.NRGBA, x, baseline int, s string) {
-	text.Draw(img, x, baseline, text.Truncate(s, (screenW-16)/7), colPlay)
 }
 
 // drawOnOffBox: a rounded box holding s. On = white fill, black text.

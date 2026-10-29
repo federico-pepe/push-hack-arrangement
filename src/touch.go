@@ -17,11 +17,11 @@ import (
 const touchHoldAfterRelease = 500 * time.Millisecond
 
 // touchShowDelay: a knob touch shows the overlay only after this long, so a
-// quick touch, or a turn that starts at once, never flashes it. The jog wheel
-// and the top buttons show at once.
+// quick touch, or a turn that starts at once, never flashes it. Tempo, Volume, the jog
+// wheel and the top buttons show at once.
 const touchShowDelay = 150 * time.Millisecond
 
-func delayed(n uint8) bool { return n != noteJogTouch && !isButtonNote(n) }
+func delayed(n uint8) bool { return isEncoderNote(n) }
 
 // Touch notes this hack reacts to, named from core/push3 rather than
 // restated as magic numbers.
@@ -63,7 +63,6 @@ type overlayCol struct {
 // touchInfo: everything the layer can show, computed fresh at render time.
 type touchInfo struct {
 	cols []overlayCol     // shown together when any encoder is touched
-	hint map[uint8]string // Tempo / Volume: the overlay line, no value (what the knob does)
 	text map[uint8]string // one line per control: value text (Tempo, Volume, jog, Encoders 1/2)
 }
 
@@ -178,9 +177,8 @@ func (t *touchLayer) onTurn(cc uint8) {
 
 // touchView: what to draw right now.
 type touchView struct {
-	cols  []overlayCol // header columns (dim the screen)
-	lines []string     // Tempo / Volume lines (dim the screen)
-	bar   []string     // bottom bar: values of controls being turned, and the jog wheel
+	cols []overlayCol // header columns (dim the screen)
+	bar  []string     // bottom bar: values of controls being turned, and the jog wheel
 }
 
 // view: freshly computed, zero value if nothing is touched. A touched control
@@ -225,9 +223,9 @@ func (t *touchLayer) view() touchView {
 		case anyMoved: // another control is being turned: keep the screen clear
 		case isEncoderNote(n) || isButtonNote(n):
 			v.cols = info.cols
-		default:
-			if h, ok := info.hint[n]; ok {
-				v.lines = append(v.lines, h)
+		default: // Tempo, Volume: the bar, no dim
+			if has {
+				v.bar = append(v.bar, txt)
 			}
 		}
 	}

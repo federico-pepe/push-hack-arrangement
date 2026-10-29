@@ -10,7 +10,6 @@ import (
 func testInfo() touchInfo {
 	return touchInfo{
 		cols: []overlayCol{{col: 0, button: "Loop ON", name: "Loop Start", value: "1.1.1"}},
-		hint: map[uint8]string{noteTempoTouch: "Zoom: Horizontal", noteVolumeTouch: "View: scroll"},
 		text: map[uint8]string{
 			noteTempoTouch: "Zoom", noteVolumeTouch: "View", noteJogTouch: "PLAYHEAD 1.1.1", noteEncoder1Touch: "LOOP START 1.1.1",
 		},
@@ -28,7 +27,7 @@ func newTestTouchLayer() (*touchLayer, *int) {
 
 func TestEncoderTouchShowsColumns(t *testing.T) {
 	tl, _ := newTestTouchLayer()
-	if v := tl.view(); v.cols != nil || v.bar != nil || v.lines != nil {
+	if v := tl.view(); v.cols != nil || v.bar != nil {
 		t.Fatal("nothing touched yet")
 	}
 	tl.onNote(noteEncoder1Touch, true)
@@ -51,18 +50,17 @@ func TestJogShowsBarOnly(t *testing.T) {
 	tl, _ := newTestTouchLayer()
 	tl.onNote(noteJogTouch, true)
 	v := tl.view()
-	if len(v.bar) != 1 || v.cols != nil || v.lines != nil {
+	if len(v.bar) != 1 || v.cols != nil {
 		t.Fatalf("got %+v", v)
 	}
 }
 
-func TestTempoVolumeShowLines(t *testing.T) {
+func TestTempoVolumeShowBarAtOnce(t *testing.T) {
 	tl, _ := newTestTouchLayer()
 	tl.onNote(noteVolumeTouch, true)
 	tl.onNote(noteTempoTouch, true)
-	waitShow()
-	v := tl.view()
-	if len(v.lines) != 2 || v.lines[0] != "Zoom: Horizontal" || v.lines[1] != "View: scroll" {
+	v := tl.view() // no delay, no dim
+	if len(v.bar) != 2 || v.bar[0] != "Zoom" || v.bar[1] != "View" || v.cols != nil {
 		t.Fatalf("got %+v", v)
 	}
 }
@@ -96,7 +94,7 @@ func TestTouchAgainDuringGraceCancelsTimeout(t *testing.T) {
 func TestUnrelatedNoteIgnored(t *testing.T) {
 	tl, calls := newTestTouchLayer()
 	tl.onNote(99, true)
-	if v := tl.view(); v.cols != nil || v.bar != nil || v.lines != nil {
+	if v := tl.view(); v.cols != nil || v.bar != nil {
 		t.Fatal("note 99 is not a tracked touch")
 	}
 	if *calls != 0 {
@@ -121,16 +119,6 @@ func TestTurnHidesOverlayAndShowsBar(t *testing.T) {
 	waitShow()
 	if v := tl.view(); len(v.cols) != 1 || v.bar != nil {
 		t.Fatalf("new touch must show the overlay again: %+v", v)
-	}
-}
-
-func TestTurnTempoShowsBarNotLine(t *testing.T) {
-	tl, _ := newTestTouchLayer()
-	tl.onNote(noteTempoTouch, true)
-	tl.onTurn(push3.CCTempo)
-	v := tl.view()
-	if v.lines != nil || len(v.bar) != 1 || v.bar[0] != "Zoom" {
-		t.Fatalf("got %+v", v)
 	}
 }
 

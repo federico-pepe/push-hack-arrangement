@@ -101,10 +101,6 @@ func main() {
 				{col: 1, button: "Punch In", toggle: true, buttonOn: punchIn, name: "Loop Length", value: bbsLength(loopLength, bpb)},
 				{col: 2, button: "Punch Out", toggle: true, buttonOn: punchOut},
 			},
-			hint: map[uint8]string{
-				noteTempoTouch:  map[bool]string{false: "Zoom: Horizontal", true: "Zoom: Vertical"}[ctl != nil && ctl.zoomTracks()],
-				noteVolumeTouch: "View: scroll arrangement horizontally",
-			},
 			text: map[uint8]string{
 				noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
 				noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
@@ -122,7 +118,7 @@ func main() {
 		}
 		vp := vc.viewport(s)
 		tv := touch.view()
-		vp.overlay, vp.overlayLines = tv.cols, tv.lines
+		vp.overlay = tv.cols
 		if len(tv.bar) > 0 {
 			vp.toastLines = tv.bar
 		}
