@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Touching any of the 8 encoders dims the screen and shows a header like Live's own: for each column, the top button function (Loop, Punch In, Punch Out, with on/off), then the encoder name and value (Loop Start, Loop Length). Touching the Tempo or Volume knob dims the screen and shows one line at the bottom left (zoom mode and level, or the bars in view). As soon as you turn the knob, the dim and header go away and the bottom bar shows the value as it changes. The jog wheel keeps the bottom bar, now black with white text. The Tempo and Volume overlay lines say what the knob does ("Zoom: Horizontal", "Zoom: Vertical", "View: scroll arrangement horizontally") and sit above the bottom bar. The Loop, Punch In and Punch Out buttons show On/Off in a rounded box (white with black text when on, white border when off). Pressing the Loop, Punch In or Punch Out button shows the same header, so you see the box change. The "LOOP ON" style bottom message for these buttons is gone. A knob touch shows the overlay after 150 ms, so a quick tap or a turn that starts at once does not flash it.
+
 ## [0.0.10-alpha] - 2026-10-27
 
 0.0.9-alpha was tagged but its release build failed (the workflow still copied the removed `remote-script/` folder). This release has the same code and the fixed workflow.

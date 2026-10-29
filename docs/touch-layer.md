@@ -5,6 +5,14 @@ The rest of this page is still the design for the remaining controls (Volume, Te
 the top 8 knobs above the screen) -- build their content the same way, in the same
 change that gives them a job.
 
+> **Update (prototype):** the sections below describe the first design (one bottom
+> bar). Now: touching any encoder (notes 0-7) dims the screen and draws a header
+> (`render.go`: `drawTouchOverlay`) -- per column, the top button function, the
+> encoder name and its value. Columns 1-3 have content (Loop, Punch In, Punch Out;
+> Loop Start, Loop Length). Tempo and Volume touches draw one big line at the bottom
+> left (`Zoom Time: N bars` / `Zoom Tracks: N tracks`, `View: bar A-B`). The jog wheel
+> keeps the bottom bar (black, white text). Knob touches wait `touchShowDelay` (150 ms) before they show; jog and button presses show at once. When a touched knob is turned (`touchLayer.onTurn`), the overlay goes away and the bar shows that knob's value until the next touch. The bottom bar is also used by toasts.
+
 ## Idea
 
 The screen is small. We do not want a top bar and a bottom bar on it all the time.

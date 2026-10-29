@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/png"
 	"log"
@@ -76,21 +77,41 @@ func main() {
 	vc.onScrollAvailability(syncDPadLEDs)
 	var mode *modeCtl // set below; touch's callback closes over it
 
-	touch := newTouchLayer(func() map[uint8]string {
+	var ctl *controls // set below; touch's callback reads it at render time
+
+	touch := newTouchLayer(func() touchInfo {
 		s, _, _ := st.get()
 		if s == nil {
-			return nil
+			return touchInfo{}
 		}
 		bpb := s.bpb()
 		t := s.Playhead
 		if s.HasCursor { // jog moves the cursor, not the real playhead -- show that instead
 			t = s.Cursor
 		}
-		_, _, _, loopStart, loopLength := st.transport()
-		return map[uint8]string{
-			noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
-			noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
-			noteEncoder2Touch: "LOOP LEN " + bbsLength(loopLength, bpb),
+		loopOn, punchIn, punchOut, loopStart, loopLength := st.transport()
+		first, last, tracks := vc.viewInfo(s, bpb)
+		zoom := fmt.Sprintf("Zoom Time: %d bars", last-first+1)
+		if ctl != nil && ctl.zoomTracks() {
+			zoom = fmt.Sprintf("Zoom Tracks: %d tracks", tracks)
+		}
+		return touchInfo{
+			cols: []overlayCol{
+				{col: 0, button: "Loop", toggle: true, buttonOn: loopOn, name: "Loop Start", value: bbsPosition(loopStart, bpb)},
+				{col: 1, button: "Punch In", toggle: true, buttonOn: punchIn, name: "Loop Length", value: bbsLength(loopLength, bpb)},
+				{col: 2, button: "Punch Out", toggle: true, buttonOn: punchOut},
+			},
+			hint: map[uint8]string{
+				noteTempoTouch:  map[bool]string{false: "Zoom: Horizontal", true: "Zoom: Vertical"}[ctl != nil && ctl.zoomTracks()],
+				noteVolumeTouch: "View: scroll arrangement horizontally",
+			},
+			text: map[uint8]string{
+				noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
+				noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
+				noteEncoder2Touch: "LOOP LENGTH " + bbsLength(loopLength, bpb),
+				noteTempoTouch:    zoom,
+				noteVolumeTouch:   fmt.Sprintf("View: bar %d-%d", first, last),
+			},
 		}
 	}, func() { mode.refresh() })
 
@@ -100,8 +121,10 @@ func main() {
 			return renderMessage(msg, hint)
 		}
 		vp := vc.viewport(s)
-		if lines := touch.text(); len(lines) > 0 {
-			vp.toastLines = lines
+		tv := touch.view()
+		vp.overlay, vp.overlayLines = tv.cols, tv.lines
+		if len(tv.bar) > 0 {
+			vp.toastLines = tv.bar
 		}
 		return renderArrangement(s, vp)
 	}
@@ -152,7 +175,7 @@ func main() {
 		}, stop)
 	}
 	chord := newChordDetector()
-	ctl := newControls(vc, st, mode.isOn,
+	ctl = newControls(vc, st, mode.isOn,
 		func() bool { return chord.isHeld(ccShift) },
 		func() bool { return chord.isHeld(ccDelete) },
 		mode.refresh, sendCmd,
@@ -171,7 +194,13 @@ func main() {
 			}
 			burstLEDs(syncLEDs)
 		})
-	h := &midiHandler{chord: chord, onCC: ctl.onCC, onNote: touch.onNote,
+	h := &midiHandler{chord: chord, onCC: func(cc, val uint8) {
+		if mode.isOn() {
+			touch.onButton(cc, val)
+		}
+		touch.onTurn(cc)
+		ctl.onCC(cc, val)
+	}, onNote: touch.onNote,
 		onFire: func() {
 			mode.toggle()
 			if mode.isOn() {

@@ -62,12 +62,14 @@ func rgb(c uint32) color.NRGBA {
 
 // viewport: what part of the arrangement is on screen.
 type viewport struct {
-	x0         float64  // time at left edge of the clip area (beats)
-	ppb        float64  // pixels per beat
-	laneH      float64  // pixels per track lane
-	first      float64  // first visible track (fractional)
-	gutter     int      // width of the track-name column (0 = none)
-	toastLines []string // message box lines (toast or the touch layer), nil = none
+	x0           float64      // time at left edge of the clip area (beats)
+	ppb          float64      // pixels per beat
+	laneH        float64      // pixels per track lane
+	first        float64      // first visible track (fractional)
+	gutter       int          // width of the track-name column (0 = none)
+	toastLines   []string     // message box lines (a toast), nil = none
+	overlay      []overlayCol // touch layer header columns, nil = none
+	overlayLines []string     // touch layer Tempo / Volume lines, nil = none
 }
 
 // fitView shows the whole song, every track.
@@ -228,6 +230,9 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		fill(img, x, 0, 2, screenH, v.gutter, 0, colPlay)
 	}
 
+	if len(v.overlay) > 0 || len(v.overlayLines) > 0 {
+		drawTouchOverlay(img, v.overlay, v.overlayLines)
+	}
 	if len(v.toastLines) > 0 {
 		drawToast(img, v.toastLines)
 	}
@@ -239,16 +244,64 @@ func sameBeat(a, b float64) bool {
 	return d > -1e-6 && d < 1e-6
 }
 
-const toastBarH = 18
+const (
+	toastBarH   = 18
+	overlayDim  = 0.4 // brightness kept under the touch overlay
+	overlayCols = 8
+)
+
+// dimImage scales every pixel's brightness by f.
+func dimImage(img *image.NRGBA, f float64) {
+	p := img.Pix
+	for i := 0; i+3 < len(p); i += 4 {
+		p[i] = uint8(float64(p[i]) * f)
+		p[i+1] = uint8(float64(p[i+1]) * f)
+		p[i+2] = uint8(float64(p[i+2]) * f)
+	}
+}
+
+// drawTouchOverlay: dims the whole frame, then draws, like Live's own header,
+// each column's button function, encoder name and value, left-aligned at the
+// top. Tempo / Volume lines go bottom left, big, one above the other.
+func drawTouchOverlay(img *image.NRGBA, cols []overlayCol, lines []string) {
+	dimImage(img, overlayDim)
+	colW := screenW / overlayCols
+	for _, c := range cols {
+		x := c.col*colW + 8
+		text.Draw(img, x, 14, text.Truncate(c.button, (colW-12)/7), colText)
+		if c.toggle {
+			bx := x + text.Width(c.button) + 6
+			state := "Off"
+			if c.buttonOn {
+				state = "On"
+			}
+			drawOnOffBox(img, bx, 3, state, c.buttonOn)
+		}
+		if c.name != "" {
+			text.Draw(img, x, 36, text.Truncate(c.name, (colW-12)/7), colText)
+			text.Draw(img, x, 52, text.Truncate(c.value, (colW-12)/7), colPlay)
+		}
+	}
+	for i, l := range lines {
+		drawHint(img, 8, screenH-toastBarH-8-i*16, l)
+	}
+}
 
 // joinToastLines combines several lines (e.g. the touch layer showing the
 // jog wheel and a loop knob at once) into one row for the status bar.
 func joinToastLines(lines []string) string { return strings.Join(lines, "   ") }
 
+// toastTheme: the bottom bar is black with white text.
+var toastTheme = func() widgets.Theme {
+	t := widgets.Default
+	t.StatusBg, t.StatusCol = colBG, t.White
+	return t
+}()
+
 // drawToast: a bottom status bar, widgets.DrawStatusBar -- the same one-line
 // message strip push-tethered-app's modules use.
 func drawToast(img *image.NRGBA, lines []string) {
-	widgets.DrawStatusBar(img, widgets.Default, screenH-toastBarH, screenW, toastBarH, joinToastLines(lines), false)
+	widgets.DrawStatusBar(img, toastTheme, screenH-toastBarH, screenW, toastBarH, joinToastLines(lines), false)
 }
 
 // drawRuler: bar numbers (labels >= 48 px apart), beat ticks when zoomed in.
@@ -304,4 +357,31 @@ func (s *Set) bpb() float64 {
 		return s.BeatsPerBar
 	}
 	return 4
+}
+
+func drawHint(img *image.NRGBA, x, baseline int, s string) {
+	text.Draw(img, x, baseline, text.Truncate(s, (screenW-16)/7), colPlay)
+}
+
+// drawOnOffBox: a rounded box holding s. On = white fill, black text.
+// Off = white border, black fill, white text.
+func drawOnOffBox(img *image.NRGBA, x, y int, s string, on bool) {
+	w, h := text.Width(s)+8, 15
+	fg, bg := colPlay, colBG
+	if on {
+		fg, bg = colBG, colPlay
+	}
+	gfx.FillRect(img, x, y, w, h, colPlay) // border / fill
+	if !on {
+		gfx.FillRect(img, x+1, y+1, w-2, h-2, bg)
+	}
+	for _, c := range [][2]int{{x, y}, {x + w - 1, y}, {x, y + h - 1}, {x + w - 1, y + h - 1}} { // round the corners
+		img.SetNRGBA(c[0], c[1], colBG)
+	}
+	for _, c := range [][2]int{{x + 1, y}, {x, y + 1}, {x + w - 2, y}, {x + w - 1, y + 1}, {x + 1, y + h - 1}, {x, y + h - 2}, {x + w - 2, y + h - 1}, {x + w - 1, y + h - 2}} {
+		if on {
+			img.SetNRGBA(c[0], c[1], colBG)
+		}
+	}
+	text.Draw(img, x+4, y+h-3, s, fg)
 }

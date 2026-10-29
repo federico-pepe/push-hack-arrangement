@@ -150,6 +150,20 @@ func (c *viewCtl) viewport(s *Set) viewport {
 	return vp
 }
 
+// viewInfo: the 1-based first and last bar in view, and the number of tracks in view.
+func (c *viewCtl) viewInfo(s *Set, bpb float64) (first, last, tracks int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clamp(s)
+	first = int(c.x0/bpb) + 1
+	last = int((c.x0+c.span())/bpb) + 1
+	tracks = int(laneAvail()/c.laneH + 0.5)
+	if tracks > len(s.Tracks) {
+		tracks = len(s.Tracks)
+	}
+	return
+}
+
 // zoomPivot: the horizontal zoom always keeps this point centred on screen --
 // the scrub cursor while one is active (that's what the user is looking at),
 // else the real playhead.
