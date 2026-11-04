@@ -4,6 +4,6 @@ go 1.25.0
 
 require golang.org/x/image v0.41.0 // indirect
 
-require github.com/federico-pepe/ableton-push-hack/core v0.5.2
+require github.com/federico-pepe/ableton-push-hack/core v0.5.4
 
 require golang.org/x/text v0.37.0 // indirect
