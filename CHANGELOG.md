@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- The hack finds Push 3's Live Port by name (`alsaseq.Push3`, `core` v0.5.4) instead of assuming ALSA client 16. With the loopback card as card 0 Push 3 is client 20, and the hack got no buttons and sent its LEDs to the wrong port.
+
 ## [0.0.10-alpha] - 2026-10-27
 
 0.0.9-alpha was tagged but its release build failed (the workflow still copied the removed `remote-script/` folder). This release has the same code and the fixed workflow.
