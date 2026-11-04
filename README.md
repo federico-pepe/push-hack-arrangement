@@ -64,7 +64,7 @@ stops following for 2 seconds after you move the view by hand.
 scripts/deploy.sh            # builds, copies to push.local, runs in the foreground
 ```
 
-Press Shift + Session on the Push. Press it again to switch off. Ctrl+C stops the
+The hack has no boot service. It runs until the Push restarts; after a restart, run `scripts/deploy.sh` again (or stop the process, `scp` the binary to `/data/push-hack/hacks/arrangement/`, and start it in the background as root). Then press Shift + Session on the Push. Press it again to switch off. Ctrl+C stops the
 hack and gives the screen and MIDI back.
 
 The hack talks to the Remote Script over `/tmp/push-hack.sock`. Tests: `make test`.
