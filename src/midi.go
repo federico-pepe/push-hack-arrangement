@@ -21,7 +21,7 @@ type midiHandler struct {
 }
 
 func (h *midiHandler) Fixed(evType uint8, src alsaseq.Addr, data []byte) {
-	if src.Client != alsaseq.Push3ClientDefault || src.Port != alsaseq.Push3PortDefault {
+	if !pushLive.IsLivePort(src) {
 		return
 	}
 	// Control surface CCs and touch notes are channel 0. Other channels =
@@ -54,8 +54,9 @@ func (h *midiHandler) VarLen(uint8, alsaseq.Addr, []byte) {}
 
 // runMIDI opens the port and subscribes; retries until it works or stop closes.
 func runMIDI(h alsaseq.Handler, stop <-chan struct{}) {
-	pinned := alsaseq.Addr{Client: alsaseq.Push3ClientDefault, Port: alsaseq.Push3PortDefault}
 	for {
+		// Push 3 client number moves with sound cards: look up each pass.
+		pinned := pushLive.Refresh()
 		seq, err := alsaseq.Open()
 		if err == nil {
 			_, err = seq.CreatePort(midiPortName,
