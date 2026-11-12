@@ -39,7 +39,7 @@ func setLED(cc, val byte) {
 		ledLit[cc] = val
 	}
 	if ledSeq != nil {
-		_ = ledSeq.SendCC(push3Live, 0, cc, int32(val))
+		_ = ledSeq.SendCC(pushLive.Addr(), 0, cc, int32(val))
 	}
 }
 
@@ -123,15 +123,17 @@ func blackoutLEDs() {
 	// Every CC 1..127, not a list of known buttons: scene buttons, touch strip
 	// cluster and anything else must go dark too. Non-LED CCs are ignored by Push.
 	for cc := 1; cc <= 127; cc++ {
-		_ = ledSeq.SendCC(push3Live, 0, byte(cc), int32(ledLit[byte(cc)]))
+		_ = ledSeq.SendCC(pushLive.Addr(), 0, byte(cc), int32(ledLit[byte(cc)]))
 	}
 	for n := padNoteMin; n <= padNoteMax; n++ {
-		_ = ledSeq.SendNote(push3Live, 0, byte(n), 0)
+		_ = ledSeq.SendNote(pushLive.Addr(), 0, byte(n), 0)
 	}
 }
 
-// push3Live: Push 3's Live port, where LED messages go.
-var push3Live = alsaseq.Addr{Client: alsaseq.Push3ClientDefault, Port: alsaseq.Push3PortDefault}
+// pushLive: Push 3's Live port, where input comes from and LED messages go.
+// Client number moves with sound cards (16 on card 0, 20 with loopback on
+// card 0); runMIDI refreshes it before each subscribe.
+var pushLive alsaseq.Push3
 
 // ledActive: true while Arrangement Mode owns the LEDs.
 var ledActive atomic.Bool

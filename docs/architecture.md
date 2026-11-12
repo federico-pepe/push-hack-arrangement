@@ -25,7 +25,7 @@ Two clients use the script: this hack (on the Push 3, Linux) and `pta-module-arr
 | `main.go` | Start-up, wiring, signal handling. Releases display and MIDI on exit |
 | `supervisor.go` | The started process is a parent. It runs the hack as a child and restarts it. If the child dies with the mode on (state file `/tmp/push-hack-arrangement.mode`), it releases display and MIDI |
 | `bench.go` | `-bench` mode to measure CPU on the device |
-| `midi.go` | Own ALSA port, subscribed to Push 3 (client 16, port 0). Reads every button and dial |
+| `midi.go` | Own ALSA port, subscribed to Push 3's Live Port (found by name; client 16 or 20). Reads every button and dial |
 | `chord.go` | Shift (CC49) + Session (CC51) chord, 500 ms debounce |
 | `mode.go` | Arrangement Mode on/off. ON = display takeover + MIDI intercept. OFF = give both back at once |
 | `controls.go` | Jog wheel (scrub cursor; Shift = real seek), jog press (play-start anchor -- press again at the same spot to clear it), Play, Session (Back to Arrangement), Page </> (locator nav), the 3 loop/punch top buttons, loop start/length encoders (with friction, `loopEncoderTicksPerStep`), Volume knob (scroll), Tempo knob (zoom, click to switch; Delete held + press resets to fit), D-pad with repeat |
