@@ -7,7 +7,7 @@ in that repo. This page lists what this hack uses.
 ## Endpoint
 
 Unix socket `/tmp/push-hack.sock` (owner only). Python in Live on Windows has no Unix sockets;
-`pta-module-arrangement` uses TCP `127.0.0.1:7704` there.
+A client on Windows uses TCP `127.0.0.1:7704` there.
 
 ## Start
 

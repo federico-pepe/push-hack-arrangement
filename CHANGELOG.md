@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.0.11-alpha] - 2026-11-12
+
+First public release, installable from the Push Hack catalog.
+
 ### Changed
 - The touch overlay drawing (dim, header columns, On/Off box) now comes from `core` (`widgets.DrawTouchHeader`, since v0.5.2). The look is the same.
 - Touching any of the 8 encoders dims the screen and shows a header like Live's own: for each column, the top button function (Loop, Punch In, Punch Out, with on/off), then the encoder name and value (Loop Start, Loop Length). Touching the Tempo or Volume knob shows its value in the bottom bar (zoom mode and level, or the bars in view), with no dim. As soon as you turn an encoder, the dim and header go away and the bottom bar shows the value as it changes. The jog wheel keeps the bottom bar, now black with white text. The Loop, Punch In and Punch Out buttons show On/Off in a rounded box (white with black text when on, white border when off). Pressing the Loop, Punch In or Punch Out button shows the same header, so you see the box change. The "LOOP ON" style bottom message for these buttons is gone. A knob touch shows the overlay after 150 ms, so a quick tap or a turn that starts at once does not flash it.
@@ -28,7 +32,7 @@
 - Builds against `core` v0.3.0.
 
 ### Added
-- The Remote Script listens on TCP `127.0.0.1:7720` on Windows, where Python has no Unix sockets. macOS and Linux keep the Unix socket. The messages do not change. Needed by `pta-module-arrangement` on Windows. See `remote-script/transport.py` and `docs/protocol.md`.
+- The Remote Script listens on TCP `127.0.0.1:7720` on Windows, where Python has no Unix sockets. macOS and Linux keep the Unix socket. The messages do not change. See `remote-script/transport.py` and `docs/protocol.md`.
 
 ## [0.0.6-alpha] - 2026-09-29
 
