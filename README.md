@@ -33,10 +33,10 @@ full colour once you press Back to Arrangement.
 | Top button 1 | Loop on/off. White when off, yellow when on |
 | Top button 2 | Punch In on/off. White when off, yellow when on |
 | Top button 3 | Punch Out on/off. White when off, yellow when on |
-| Encoder 1 (touch-capable) | Loop start, one bar per detent (Shift = a precise 1/16 beat step). Has a bit of resistance built in (a few raw ticks per step), so a light touch does not send it flying. Touching it shows the exact position (bars.beats.16th) over the arrangement |
+| Encoder 1 (touch-capable) | Loop start, one bar per detent (Shift = a precise 1/16 beat step). Has a bit of resistance built in (a few raw ticks per step), so a light touch does not send it flying. Touching any encoder dims the screen and shows the encoder header (button function, encoder name and value, exact position as bars.beats.16th) |
 | Encoder 2 (touch-capable) | Loop length, one bar per detent (Shift = a precise 1/16 beat step). Same resistance as Encoder 1. Touching it shows the exact length the same way |
-| Volume knob | Scroll the view in time |
-| Tempo knob | Zoom. It zooms in time at first, always keeping the playhead (or the scrub marker, if one is active) centred on screen. Press the knob to switch between time zoom and track zoom. A short message shows the mode. When lanes are tall enough, track and clip names appear |
+| Volume knob | Scroll the view in time. Touching it shows the bars in view |
+| Tempo knob | Zoom. It zooms in time at first, always keeping the playhead (or the scrub marker, if one is active) centred on screen. Press the knob to switch between time zoom and track zoom. A short message shows the mode. Touching it shows the zoom mode and level. When lanes are tall enough, track and clip names appear |
 | Delete + Tempo press | Reset the zoom: shows the whole song, every track, from scratch |
 | D-pad up / down | Scroll tracks. Hold to repeat. Lit white only while that direction has more to scroll |
 | D-pad left / right | Scroll a quarter screen in time. Hold to repeat. Lit white only while that direction has more to scroll |

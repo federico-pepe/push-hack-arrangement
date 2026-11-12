@@ -339,7 +339,6 @@ func (c *controls) toggleLoop() {
 	on, _, _, _, _ := c.st.transport()
 	c.send(map[string]any{"t": "loop_toggle"})
 	c.feedback("loop", !on)
-	c.vc.setToast(onOff("LOOP", !on), toastFor)
 	c.changed()
 }
 
@@ -347,7 +346,6 @@ func (c *controls) togglePunchIn() {
 	_, in, _, _, _ := c.st.transport()
 	c.send(map[string]any{"t": "punch_in_toggle"})
 	c.feedback("punch_in", !in)
-	c.vc.setToast(onOff("PUNCH IN", !in), toastFor)
 	c.changed()
 }
 
@@ -355,15 +353,7 @@ func (c *controls) togglePunchOut() {
 	_, _, out, _, _ := c.st.transport()
 	c.send(map[string]any{"t": "punch_out_toggle"})
 	c.feedback("punch_out", !out)
-	c.vc.setToast(onOff("PUNCH OUT", !out), toastFor)
 	c.changed()
-}
-
-func onOff(label string, on bool) string {
-	if on {
-		return label + " ON"
-	}
-	return label + " OFF"
 }
 
 // adjustLoop moves the loop start (isStart) or length by one bar per detent.
@@ -403,6 +393,13 @@ func (c *controls) adjustLoop(isStart bool, delta int) {
 	c.st.setLocalLoop(start, length)
 	c.send(map[string]any{"t": "set_loop", "start": start, "length": length})
 	c.changed()
+}
+
+// zoomTracks: the Tempo knob zooms tracks (true) or time (false).
+func (c *controls) zoomTracks() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.zoomV
 }
 
 // toggleZoom switches the Tempo knob between time zoom and track zoom and says so on screen.

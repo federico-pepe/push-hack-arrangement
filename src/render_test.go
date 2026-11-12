@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
+	"image/color"
+	"testing"
+)
 
 func testSet() *Set {
 	return &Set{
@@ -150,5 +154,31 @@ func TestSelectedLocatorDrawsWhiteNotSky(t *testing.T) {
 	selected := renderArrangement(s, v).NRGBAAt(x, screenH/2)
 	if selected != colPlay {
 		t.Fatalf("selected locator should be colPlay (white), got %v", selected)
+	}
+}
+
+func TestTouchOverlayDimsAndDrawsText(t *testing.T) {
+	s := testSet()
+	plain := renderArrangement(s, fitView(s))
+	vp := fitView(s)
+	vp.overlay = []widgets.HeaderCol{{Col: 0, Label: "Loop", Toggle: true, On: true, Name: "Loop Start", Value: "1.1.1"}}
+	over := renderArrangement(s, vp)
+	// a pixel far from the text must be darker
+	a, b := plain.NRGBAAt(900, 100), over.NRGBAAt(900, 100)
+	if int(b.R)+int(b.G)+int(b.B) >= int(a.R)+int(a.G)+int(a.B) && a != (color.NRGBA{A: 255}) {
+		t.Fatalf("not dimmed: %v -> %v", a, b)
+	}
+	// text drew something bright in column 0
+	bright := false
+	for y := 0; y < 60 && !bright; y++ {
+		for x := 0; x < 120; x++ {
+			if c := over.NRGBAAt(x, y); c.R > 150 || c.G > 150 {
+				bright = true
+				break
+			}
+		}
+	}
+	if !bright {
+		t.Fatal("no overlay text found in column 0")
 	}
 }

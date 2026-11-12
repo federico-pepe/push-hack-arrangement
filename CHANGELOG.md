@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+- The touch overlay drawing (dim, header columns, On/Off box) now comes from `core` (`widgets.DrawTouchHeader`, since v0.5.2). The look is the same.
+- Touching any of the 8 encoders dims the screen and shows a header like Live's own: for each column, the top button function (Loop, Punch In, Punch Out, with on/off), then the encoder name and value (Loop Start, Loop Length). Touching the Tempo or Volume knob shows its value in the bottom bar (zoom mode and level, or the bars in view), with no dim. As soon as you turn an encoder, the dim and header go away and the bottom bar shows the value as it changes. The jog wheel keeps the bottom bar, now black with white text. The Loop, Punch In and Punch Out buttons show On/Off in a rounded box (white with black text when on, white border when off). Pressing the Loop, Punch In or Punch Out button shows the same header, so you see the box change. The "LOOP ON" style bottom message for these buttons is gone. A knob touch shows the overlay after 150 ms, so a quick tap or a turn that starts at once does not flash it.
+
 ### Fixed
 - The hack finds Push 3's Live Port by name (`alsaseq.Push3`, `core` v0.5.4) instead of assuming ALSA client 16. With the loopback card as card 0 Push 3 is client 20, and the hack got no buttons and sent its LEDs to the wrong port.
 

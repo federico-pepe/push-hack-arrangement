@@ -62,12 +62,13 @@ func rgb(c uint32) color.NRGBA {
 
 // viewport: what part of the arrangement is on screen.
 type viewport struct {
-	x0         float64  // time at left edge of the clip area (beats)
-	ppb        float64  // pixels per beat
-	laneH      float64  // pixels per track lane
-	first      float64  // first visible track (fractional)
-	gutter     int      // width of the track-name column (0 = none)
-	toastLines []string // message box lines (toast or the touch layer), nil = none
+	x0         float64             // time at left edge of the clip area (beats)
+	ppb        float64             // pixels per beat
+	laneH      float64             // pixels per track lane
+	first      float64             // first visible track (fractional)
+	gutter     int                 // width of the track-name column (0 = none)
+	toastLines []string            // message box lines (a toast), nil = none
+	overlay    []widgets.HeaderCol // touch layer header columns, nil = none
 }
 
 // fitView shows the whole song, every track.
@@ -228,6 +229,9 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 		fill(img, x, 0, 2, screenH, v.gutter, 0, colPlay)
 	}
 
+	if len(v.overlay) > 0 {
+		widgets.DrawTouchHeader(img, widgets.Default, v.overlay)
+	}
 	if len(v.toastLines) > 0 {
 		drawToast(img, v.toastLines)
 	}
@@ -239,16 +243,25 @@ func sameBeat(a, b float64) bool {
 	return d > -1e-6 && d < 1e-6
 }
 
-const toastBarH = 18
+const (
+	toastBarH = 18
+)
 
 // joinToastLines combines several lines (e.g. the touch layer showing the
 // jog wheel and a loop knob at once) into one row for the status bar.
 func joinToastLines(lines []string) string { return strings.Join(lines, "   ") }
 
+// toastTheme: the bottom bar is black with white text.
+var toastTheme = func() widgets.Theme {
+	t := widgets.Default
+	t.StatusBg, t.StatusCol = colBG, t.White
+	return t
+}()
+
 // drawToast: a bottom status bar, widgets.DrawStatusBar -- the same one-line
 // message strip push-tethered-app's modules use.
 func drawToast(img *image.NRGBA, lines []string) {
-	widgets.DrawStatusBar(img, widgets.Default, screenH-toastBarH, screenW, toastBarH, joinToastLines(lines), false)
+	widgets.DrawStatusBar(img, toastTheme, screenH-toastBarH, screenW, toastBarH, joinToastLines(lines), false)
 }
 
 // drawRuler: bar numbers (labels >= 48 px apart), beat ticks when zoomed in.

@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/png"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/federico-pepe/ableton-push-hack/core/alsaseq"
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/pmclient"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 )
@@ -76,21 +78,37 @@ func main() {
 	vc.onScrollAvailability(syncDPadLEDs)
 	var mode *modeCtl // set below; touch's callback closes over it
 
-	touch := newTouchLayer(func() map[uint8]string {
+	var ctl *controls // set below; touch's callback reads it at render time
+
+	touch := newTouchLayer(func() touchInfo {
 		s, _, _ := st.get()
 		if s == nil {
-			return nil
+			return touchInfo{}
 		}
 		bpb := s.bpb()
 		t := s.Playhead
 		if s.HasCursor { // jog moves the cursor, not the real playhead -- show that instead
 			t = s.Cursor
 		}
-		_, _, _, loopStart, loopLength := st.transport()
-		return map[uint8]string{
-			noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
-			noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
-			noteEncoder2Touch: "LOOP LEN " + bbsLength(loopLength, bpb),
+		loopOn, punchIn, punchOut, loopStart, loopLength := st.transport()
+		first, last, tracks := vc.viewInfo(s, bpb)
+		zoom := fmt.Sprintf("Zoom Time: %d bars", last-first+1)
+		if ctl != nil && ctl.zoomTracks() {
+			zoom = fmt.Sprintf("Zoom Tracks: %d tracks", tracks)
+		}
+		return touchInfo{
+			cols: []widgets.HeaderCol{
+				{Col: 0, Label: "Loop", Toggle: true, On: loopOn, Name: "Loop Start", Value: bbsPosition(loopStart, bpb)},
+				{Col: 1, Label: "Punch In", Toggle: true, On: punchIn, Name: "Loop Length", Value: bbsLength(loopLength, bpb)},
+				{Col: 2, Label: "Punch Out", Toggle: true, On: punchOut},
+			},
+			text: map[uint8]string{
+				noteJogTouch:      "PLAYHEAD " + bbsPosition(t, bpb),
+				noteEncoder1Touch: "LOOP START " + bbsPosition(loopStart, bpb),
+				noteEncoder2Touch: "LOOP LENGTH " + bbsLength(loopLength, bpb),
+				noteTempoTouch:    zoom,
+				noteVolumeTouch:   fmt.Sprintf("View: bar %d-%d", first, last),
+			},
 		}
 	}, func() { mode.refresh() })
 
@@ -100,8 +118,10 @@ func main() {
 			return renderMessage(msg, hint)
 		}
 		vp := vc.viewport(s)
-		if lines := touch.text(); len(lines) > 0 {
-			vp.toastLines = lines
+		tv := touch.view()
+		vp.overlay = tv.cols
+		if len(tv.bar) > 0 {
+			vp.toastLines = tv.bar
 		}
 		return renderArrangement(s, vp)
 	}
@@ -152,7 +172,7 @@ func main() {
 		}, stop)
 	}
 	chord := newChordDetector()
-	ctl := newControls(vc, st, mode.isOn,
+	ctl = newControls(vc, st, mode.isOn,
 		func() bool { return chord.isHeld(ccShift) },
 		func() bool { return chord.isHeld(ccDelete) },
 		mode.refresh, sendCmd,
@@ -171,7 +191,13 @@ func main() {
 			}
 			burstLEDs(syncLEDs)
 		})
-	h := &midiHandler{chord: chord, onCC: ctl.onCC, onNote: touch.onNote,
+	h := &midiHandler{chord: chord, onCC: func(cc, val uint8) {
+		if mode.isOn() {
+			touch.onButton(cc, val)
+		}
+		touch.onTurn(cc)
+		ctl.onCC(cc, val)
+	}, onNote: touch.onNote,
 		onFire: func() {
 			mode.toggle()
 			if mode.isOn() {
