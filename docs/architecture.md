@@ -16,7 +16,7 @@ two topics:
 
 Commands go the other way: `set_time`, `set_loop` and `play_toggle` in the `transport` namespace, and `bta`, `loop_toggle`, `punch_in_toggle` and `punch_out_toggle` in `arrangement`. `source.go` turns them from the shape the rest of the hack uses.
 
-Two clients use the script: this hack (on the Push 3, Linux) and `pta-module-arrangement` (a module for Push Tethered App, with Live on the user's computer).
+This hack uses the script on the Push 3 (Linux). Another client can also use it on the computer where Live runs.
 
 ## 2. Go program (`src/`, runs as a normal process)
 
