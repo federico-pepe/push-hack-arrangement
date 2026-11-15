@@ -415,10 +415,12 @@ func TestAdjustLoopLengthNeverBelowOneStep(t *testing.T) {
 }
 
 func TestPageButtonsNavigateLocators(t *testing.T) {
-	r := newRig() // viewSet's locators: 40 ("A"), 100 ("B")
+	r := newRig()  // viewSet's locators: 40 ("A"), 100 ("B")
+	r.shift = true // plain Page scrolls the view; Shift jumps to locators
 	r.st.putPos(0, false, false, false, 0, 4, false, false)
 
 	r.c.onCC(ccPageRight, 127) // -> 40
+	r.c.onCC(ccPageRight, 0)
 	got := r.sent()
 	if len(got) != 1 || got[0]["t"] != "set_time" || got[0]["v"] != 40.0 {
 		t.Fatalf("cmds %v", got)
@@ -429,18 +431,21 @@ func TestPageButtonsNavigateLocators(t *testing.T) {
 	}
 
 	r.c.onCC(ccPageRight, 127) // -> 100
+	r.c.onCC(ccPageRight, 0)
 	got = r.sent()
 	if v := got[len(got)-1]["v"]; v != 100.0 {
 		t.Fatalf("must reach the next locator: %v", v)
 	}
 
 	r.c.onCC(ccPageRight, 127) // no further locator: clamp at 100
+	r.c.onCC(ccPageRight, 0)
 	got = r.sent()
 	if v := got[len(got)-1]["v"]; v != 100.0 {
 		t.Fatalf("must clamp at the last locator: %v", v)
 	}
 
 	r.c.onCC(ccPageLeft, 127) // -> 40
+	r.c.onCC(ccPageLeft, 0)
 	got = r.sent()
 	if v := got[len(got)-1]["v"]; v != 40.0 {
 		t.Fatalf("page left must move to the earlier locator: %v", v)
@@ -459,8 +464,7 @@ func TestIgnoredWhenModeOff(t *testing.T) {
 
 func TestDpadRepeatsWhileHeldAndStopsOnRelease(t *testing.T) {
 	r := newRig()
-	r.c.vc.zoomV(60) // tall lanes -> track scrolling possible
-	r.c.onCC(ccDPadDown, 127)
+	r.c.onCC(ccDPadRight, 127)
 	r.mu.Lock()
 	first := r.redraws
 	r.mu.Unlock()
@@ -474,7 +478,7 @@ func TestDpadRepeatsWhileHeldAndStopsOnRelease(t *testing.T) {
 	if n < 3 {
 		t.Fatalf("expected repeats while held, got %d", n)
 	}
-	r.c.onCC(ccDPadDown, 0)
+	r.c.onCC(ccDPadRight, 0)
 	time.Sleep(3 * repeatEvery)
 	r.mu.Lock()
 	m := r.redraws
@@ -484,5 +488,146 @@ func TestDpadRepeatsWhileHeldAndStopsOnRelease(t *testing.T) {
 	defer r.mu.Unlock()
 	if r.redraws != m {
 		t.Fatal("repeat continued after release")
+	}
+}
+
+func TestPlainPageScrollsViewNoLocatorJump(t *testing.T) {
+	r := newRig()
+	r.c.vc.zoomH(40) // zoom in so there is room to scroll
+	x0 := r.c.vc.viewport(viewSetPtr(r)).x0
+	r.c.onCC(ccPageRight, 127)
+	r.c.onCC(ccPageRight, 0)
+	if got := r.sent(); len(got) != 0 {
+		t.Fatalf("plain Page must not touch Live: %v", got)
+	}
+	if r.c.vc.viewport(viewSetPtr(r)).x0 <= x0 {
+		t.Fatal("Page > must scroll the view forward")
+	}
+	r.c.onCC(ccPageLeft, 127)
+	r.c.onCC(ccPageLeft, 0)
+	if r.c.vc.viewport(viewSetPtr(r)).x0 != x0 {
+		t.Fatal("Page < must scroll back")
+	}
+}
+
+func TestDpadLeftRightMirrorJog(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccDPadRight, 127)
+	r.c.onCC(ccDPadRight, 0)
+	ct, ok := r.st.getCursor()
+	if !ok || ct <= 8 {
+		t.Fatalf("D-pad right must move the cursor like jog +1: %v %v", ct, ok)
+	}
+	r.c.onCC(ccDPadLeft, 127)
+	r.c.onCC(ccDPadLeft, 0)
+	if ct2, _ := r.st.getCursor(); ct2 >= ct {
+		t.Fatalf("D-pad left must move the cursor back: %v", ct2)
+	}
+}
+
+func viewSetPtr(r *rig) *Set { s, _, _ := r.st.get(); return s }
+
+func firstTrack(r *rig) float64 { return r.c.vc.viewport(viewSetPtr(r)).first }
+
+func TestOctaveScrollsTracks(t *testing.T) {
+	r := newRig()
+	r.c.vc.zoomV(60) // tall lanes -> room to scroll tracks
+	f0 := firstTrack(r)
+	r.c.onCC(ccOctaveDown, 127)
+	r.c.onCC(ccOctaveDown, 0)
+	f1 := firstTrack(r)
+	if f1 <= f0 {
+		t.Fatalf("Octave- must scroll tracks down: %v -> %v", f0, f1)
+	}
+	r.c.onCC(ccOctaveUp, 127)
+	r.c.onCC(ccOctaveUp, 0)
+	if firstTrack(r) >= f1 {
+		t.Fatal("Octave+ must scroll tracks up")
+	}
+}
+
+func clipSet() *Set {
+	return &Set{Length: 40, Tracks: []Track{
+		{Name: "A", GroupID: -1, Clips: []Clip{{Start: 0, End: 8, Name: "a1"}, {Start: 16, End: 24, Name: "a2"}}},
+		{Name: "Empty", GroupID: -1},
+		{Name: "C", GroupID: -1, Clips: []Clip{{Start: 10, End: 30, Name: "c1"}}},
+	}}
+}
+
+func lastSelect(t *testing.T, r *rig) (int, float64) {
+	t.Helper()
+	got := r.sent()
+	m := got[len(got)-1]
+	if m["t"] != "select_clip" {
+		t.Fatalf("last command %v", m)
+	}
+	return m["track"].(int), m["start"].(float64)
+}
+
+func TestDpadUpDownSelectClipsKeepingTime(t *testing.T) {
+	r := newRig()
+	r.st.putSet(clipSet())
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
+	press := func(cc uint8) { r.c.onCC(cc, 127); r.c.onCC(cc, 0) }
+
+	press(ccDPadDown) // nothing selected: top visible track, clip at time 0
+	if tr, st := lastSelect(t, r); tr != 0 || st != 0 {
+		t.Fatalf("first select: %d %v", tr, st)
+	}
+	press(ccDPadDown) // skips the empty track; nearest clip to time 0
+	if tr, st := lastSelect(t, r); tr != 2 || st != 10 {
+		t.Fatalf("second select: %d %v", tr, st)
+	}
+	n := len(r.sent())
+	press(ccDPadDown) // no track below: nothing happens
+	if len(r.sent()) != n {
+		t.Fatal("past the last track must not send")
+	}
+	r.st.setCursor(17) // keep time: a cursor at 17 picks the clip that holds it
+	press(ccDPadUp)
+	if tr, st := lastSelect(t, r); tr != 0 || st != 16 {
+		t.Fatalf("up at time 17: %d %v", tr, st)
+	}
+	s, _, _ := r.st.get()
+	if !s.HasSelClip || s.SelTrack != 0 || s.SelStart != 16 {
+		t.Fatalf("selection not stored: %+v", s)
+	}
+}
+
+func TestPageRepeatsWhileHeldButShiftPageDoesNot(t *testing.T) {
+	r := newRig()
+	r.c.vc.zoomH(40)
+	r.c.onCC(ccPageRight, 127)
+	x1 := r.c.vc.viewport(viewSetPtr(r)).x0
+	time.Sleep(repeatDelay + 4*repeatEvery)
+	x2 := r.c.vc.viewport(viewSetPtr(r)).x0
+	r.c.onCC(ccPageRight, 0)
+	if x2 <= x1 {
+		t.Fatal("held Page must keep scrolling")
+	}
+	r.mu.Lock()
+	r.shift = true
+	r.mu.Unlock()
+	r.st.putPos(0, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccPageRight, 127)
+	time.Sleep(repeatDelay + 4*repeatEvery)
+	r.c.onCC(ccPageRight, 0)
+	if n := len(r.sent()); n != 1 {
+		t.Fatalf("held Shift+Page must jump once, sent %d", n)
+	}
+}
+
+func TestDpadCentreMirrorsJogPress(t *testing.T) {
+	r := newRig()
+	r.st.putPos(8, false, false, false, 0, 4, false, false)
+	r.c.onCC(ccDPadCenter, 127)
+	if at, ok := r.st.getAnchor(); !ok || at != 8 {
+		t.Fatalf("centre click must set the anchor at the playhead: %v %v", at, ok)
+	}
+	r.c.onCC(ccDPadCenter, 0)
+	r.c.onCC(ccDPadCenter, 127) // same spot: clears
+	if _, ok := r.st.getAnchor(); ok {
+		t.Fatal("second centre click at the same spot must clear the anchor")
 	}
 }

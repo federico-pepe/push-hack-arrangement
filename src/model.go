@@ -48,6 +48,12 @@ type Set struct {
 	HasSelLocator bool
 	SelLocator    float64
 
+	// Selected clip (D-pad up/down): track index and clip start. Local, but the
+	// clip is also selected in Live (select_clip), so Live's Detail view shows it.
+	HasSelClip bool
+	SelTrack   int
+	SelStart   float64
+
 	// Scrub cursor (plain jog wheel): local only, does not mean Live has
 	// moved. See store.setCursor's doc.
 	HasCursor bool

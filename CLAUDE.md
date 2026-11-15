@@ -15,10 +15,12 @@ Shared facts for all Push repos (repo map, git identity, `core/` pinning, cross-
 - `core` comes from GitHub (`github.com/federico-pepe/ableton-push-hack/core`, tag in `src/go.mod`). No local `replace`.
 - Draw on screen only through push-manager (`pmclient`). Never mmap shm.
 - Screen strings are ASCII only.
-- Live data comes from the PushHack Remote Script (`remote-script/PushHack/` in `ableton-push-hack`), topics `arrangement` and `position`. This repo has no script of its own. A change to a topic goes into `ableton-push-hack` first. `docs/protocol.md` says which topics this hack uses.
+- Live data comes from the PushHack Remote Script (`remote-script/PushHack/` in `ableton-push-hack`, local clone `~/Documents/GitHub/ableton-push-hack`), topics `arrangement` and `position`. This repo has no script of its own and never gets one. No `remote-script/` folder here. A change to a topic goes into `ableton-push-hack` first. `docs/protocol.md` says which topics this hack uses.
 - A test must never open `/tmp/push-hack.sock` on a computer where Live runs: the script deletes an existing socket file before it binds. Tests set `liveSocketPath` to their own path.
 - Any exit path must release display takeover and MIDI intercept (`modeCtl.release`).
 - No `/dev/snd` access before `alsaseq.WaitForBootSettle()`.
+- **D-pad mirrors other controls.** Push 2 has no jog wheel, so the D-pad stands in for it. D-pad left/right = jog wheel (one jog step, Shift = real seek). Centre click = jog wheel click. Up/down select the clip on the track above/below (the exception: no Octave mirror), and Live selects it too (`select_clip`). Never give the D-pad any other function of its own. Octave + / - scroll tracks. Page < / > scroll the view in time; Shift + Page < / > jump between locators. Page, Octave and D-pad (not centre) repeat while held.
+- **Tethered twin must stay in sync.** This hack (standalone Push 3) and its tethered twin for the PTA (see the repo map in `push-family.md`) must have the same functions and the same controls. Any control, behavior or doc change here goes into the twin in the same piece of work, and the other way round. Keep the controls tables equal. The twin is private: never name it in this repo's public files (README, docs, CHANGELOG, code, this file's wording stays generic).
 - Code comments: caveman skill. Docs: simple-english skill. Update CHANGELOG `[Unreleased]` per notable change.
 
 ## Commands
