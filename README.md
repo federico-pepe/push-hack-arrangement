@@ -29,7 +29,8 @@ full colour once you press Back to Arrangement.
 | Jog wheel press | Set the play-start anchor at the current position, silently (nothing jumps). Pressing again at that SAME spot clears it instead -- no Shift needed |
 | Play | Start or stop Live. Starting jumps to the anchor first, if one is set. The button is white when stopped, green while playing |
 | Session | Back to Arrangement. Lights bright white when Session clips override the arrangement (the button has a greyscale LED) |
-| Page < / Page > | Jump to the previous / next locator (a real seek). The one you land on turns white on screen. Both buttons are always lit white |
+| Page < / Page > | Scroll the view in time, a quarter screen per press (useful when zoomed in). Hold to repeat. Always lit white |
+| Shift + Page < / Page > | Jump to the previous / next locator (a real seek). The one you land on turns white on screen |
 | Top button 1 | Loop on/off. White when off, yellow when on |
 | Top button 2 | Punch In on/off. White when off, yellow when on |
 | Top button 3 | Punch Out on/off. White when off, yellow when on |
@@ -38,8 +39,10 @@ full colour once you press Back to Arrangement.
 | Volume knob | Scroll the view in time. Touching it shows the bars in view |
 | Tempo knob | Zoom. It zooms in time at first, always keeping the playhead (or the scrub marker, if one is active) centred on screen. Press the knob to switch between time zoom and track zoom. A short message shows the mode. Touching it shows the zoom mode and level. When lanes are tall enough, track and clip names appear |
 | Delete + Tempo press | Reset the zoom: shows the whole song, every track, from scratch |
-| D-pad up / down | Scroll tracks. Hold to repeat. Lit white only while that direction has more to scroll |
-| D-pad left / right | Scroll a quarter screen in time. Hold to repeat. Lit white only while that direction has more to scroll |
+| Octave + / Octave - | Scroll the tracks up / down (useful when zoomed in). Hold to repeat. Always lit white |
+| D-pad left / right | Mirror the jog wheel: one jog step back / forward (Shift = a real seek). Hold to repeat |
+| D-pad centre click | Mirrors the jog wheel click: set the play-start anchor, or clear it at the same spot |
+| D-pad up / down | Select the clip on the track above / below, at the scrub marker or playhead time (or the nearest clip). The clip gets a white outline, and Live selects it too (its Detail view shows it). Tracks with no clips are skipped. With nothing selected, it starts at the top visible track. Hold to repeat |
 
 Touching the jog wheel or encoders 1/2 shows a bar at the bottom of the screen
 with the exact playhead position or loop start/length (bars.beats.16th, e.g.

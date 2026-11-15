@@ -28,14 +28,14 @@ This hack uses the script on the Push 3 (Linux). Another client can also use it 
 | `midi.go` | Own ALSA port, subscribed to Push 3's Live Port (found by name; client 16 or 20). Reads every button and dial |
 | `chord.go` | Shift (CC49) + Session (CC51) chord, 500 ms debounce |
 | `mode.go` | Arrangement Mode on/off. ON = display takeover + MIDI intercept. OFF = give both back at once |
-| `controls.go` | Jog wheel (scrub cursor; Shift = real seek), jog press (play-start anchor -- press again at the same spot to clear it), Play, Session (Back to Arrangement), Page </> (locator nav), the 3 loop/punch top buttons, loop start/length encoders (with friction, `loopEncoderTicksPerStep`), Volume knob (scroll), Tempo knob (zoom, click to switch; Delete held + press resets to fit), D-pad with repeat |
-| `view.go` | Zoom and scroll state, playhead follow, `resetToFit` (Delete + Tempo press). Horizontal zoom always pivots on the playhead (or the scrub cursor, if one is active). Tracks whether each D-pad direction can still scroll further (`computeAvailability`) and tells `leds.go`'s `syncDPadLEDs` via a callback (`onScrollAvailability`) after every zoom/scroll. All values are clamped for the current set |
+| `controls.go` | Jog wheel (scrub cursor; Shift = real seek), jog press (play-start anchor -- press again at the same spot to clear it), Play, Session (Back to Arrangement), Page </> (scroll the view; Shift = locator nav), the 3 loop/punch top buttons, loop start/length encoders (with friction, `loopEncoderTicksPerStep`), Volume knob (scroll), Tempo knob (zoom, click to switch; Delete held + press resets to fit), Octave +/- (scroll tracks), D-pad (left/right and centre mirror the jog wheel; up/down select clips, `selectClip`); Page, Octave and D-pad repeat while held |
+| `view.go` | Zoom and scroll state, playhead follow, `resetToFit` (Delete + Tempo press). Horizontal zoom always pivots on the playhead (or the scrub cursor, if one is active). All values are clamped for the current set |
 | `touch.go` | The touch layer: knob/jog-wheel touch shows a status bar over the arrangement. See `docs/touch-layer.md` |
 | `bbs.go` | Bars.beats.16th formatting (`bbsPosition`, `bbsLength`), matching Live's own display |
 | `render.go` | Draws the 960x160 image: ruler, lanes, clips, names, locators, loop (region bar + on/off boundary lines), play-start anchor (triangle), scrub cursor, playhead |
 | `source.go` | Connection to the Remote Script, the current set, commands to Live. Also holds local-only state Live never reports back: the play-start anchor, the selected locator, and the scrub cursor. The playhead and the loop start/length each briefly ignore Live's report after a local edit (`hold`, `loopHold`) -- kept as two SEPARATE timers on purpose, so adjusting the loop can never freeze the playhead or vice versa |
 | `model.go` | Data types (Set, Track, Clip, Locator, Loop) |
-| `leds.go` | LED blackout and the few LEDs we light (Play, Session, Page </>, the 3 loop/punch buttons, the 4 D-pad directions) |
+| `leds.go` | LED blackout and the few LEDs we light (Play, Session, Page </>, the 3 loop/punch buttons, Octave, D-pad) |
 | `depcheck.go` | Logs when push-manager or push-display is missing |
 | `als.go`, `colors.go` | Reader for a saved `.als` file. Only for `make preview` and `-set`. Not used on the Push |
 

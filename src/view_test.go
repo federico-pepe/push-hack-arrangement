@@ -86,64 +86,6 @@ func TestZoomVAndTrackScroll(t *testing.T) {
 	}
 }
 
-func TestScrollAvailabilityAtEdges(t *testing.T) {
-	vc, s := newTestView()
-	up, down, left, right := vc.availability(s)
-	if up || down || left || right {
-		t.Fatalf("fit view shows everything: nothing should be scrollable, got %v %v %v %v", up, down, left, right)
-	}
-
-	vc.zoomH(30) // zoom in so there's room to scroll in time
-	up, down, left, right = vc.availability(s)
-	if left {
-		t.Fatal("still at the start: left must be unavailable")
-	}
-	if !right {
-		t.Fatal("zoomed in from the start: right must be available")
-	}
-	vc.scrollT(10000)
-	_, _, _, right = vc.availability(s)
-	if right {
-		t.Fatal("scrolled to the end: right must now be unavailable")
-	}
-
-	vc.zoomV(60) // tall lanes -> room to scroll tracks
-	_, down, _, _ = vc.availability(s)
-	if !down {
-		t.Fatal("zoomed in from the top: down must be available")
-	}
-	vc.scrollTracks(1000)
-	_, down, _, _ = vc.availability(s)
-	if down {
-		t.Fatal("scrolled to the last track: down must now be unavailable")
-	}
-}
-
-func TestScrollAvailabilityCallbackFiresOnMutators(t *testing.T) {
-	vc, s := newTestView()
-	var calls int
-	var lastUp, lastDown, lastLeft, lastRight bool
-	vc.onScrollAvailability(func(up, down, left, right bool) {
-		calls++
-		lastUp, lastDown, lastLeft, lastRight = up, down, left, right
-	})
-	vc.zoomH(1)
-	if calls != 1 {
-		t.Fatalf("zoomH must fire the callback once, got %d", calls)
-	}
-	vc.scrollT(1)
-	vc.scrollPage(1)
-	vc.scrollTracks(1)
-	vc.zoomV(1)
-	if calls != 5 {
-		t.Fatalf("every mutator must fire it, got %d calls", calls)
-	}
-	wantUp, wantDown, wantLeft, wantRight := vc.availability(s)
-	if lastUp != wantUp || lastDown != wantDown || lastLeft != wantLeft || lastRight != wantRight {
-		t.Fatal("callback's last values must match the current availability")
-	}
-}
-
 func TestScrollTimeClamps(t *testing.T) {
 	vc, s := newTestView()
 	vc.zoomH(30)
@@ -177,25 +119,6 @@ func TestFollow(t *testing.T) {
 	vc.follow(150, true)
 	if vc.viewport(s).x0 != 0 {
 		t.Fatal("must not follow right after a manual move")
-	}
-}
-
-func TestHandleCC(t *testing.T) {
-	vc, _ := newTestView()
-	if vc.handleCC(ccVolumeDial, 1) || vc.handleCC(ccTempoDial, 127) {
-		t.Fatal("dials belong to controls, not the view")
-	}
-	if vc.handleCC(ccDPadUp, 0) {
-		t.Fatal("dpad release must be ignored")
-	}
-	if !vc.handleCC(ccDPadDown, 127) {
-		t.Fatal("dpad press handled")
-	}
-	if vc.handleCC(ccJog, 3) {
-		t.Fatal("jog belongs to controls, not the view")
-	}
-	if vc.handleCC(99, 1) {
-		t.Fatal("unknown cc must not be handled")
 	}
 }
 

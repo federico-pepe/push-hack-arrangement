@@ -24,6 +24,7 @@ const (
 	ccDPadRight  = push3.CCDPadRight
 	ccDPadUp     = push3.CCDPadUp
 	ccDPadDown   = push3.CCDPadDown
+	ccDPadCenter = push3.CCDPadCenter
 
 	zoomStep      = 1.06            // per encoder tick
 	maxPPB        = 300             // px per beat, most zoomed in
@@ -47,20 +48,9 @@ type viewCtl struct {
 
 	toast      string // short message drawn on the view
 	toastUntil time.Time
-
-	onAvail func(up, down, left, right bool) // told after any zoom/scroll; see onScrollAvailability
 }
 
 func newViewCtl(get func() *Set) *viewCtl { return &viewCtl{get: get} }
-
-// onScrollAvailability registers cb to run after any zoom or scroll -- the
-// D-pad up/down/left/right LEDs use it to light white only while that
-// direction can still move further (see main.go, leds.go's syncDPadLEDs).
-func (c *viewCtl) onScrollAvailability(cb func(up, down, left, right bool)) {
-	c.mu.Lock()
-	c.onAvail = cb
-	c.mu.Unlock()
-}
 
 func totalBeats(s *Set) float64 {
 	t := s.Length + songTailBeats
@@ -106,38 +96,6 @@ func (c *viewCtl) gutter() int {
 // span: beats visible in the clip area.
 func (c *viewCtl) span() float64 { return float64(screenW-c.gutter()) / c.ppb }
 
-// computeAvailability: which D-pad directions can still move further. Assumes
-// c.mu is held and c is already clamped for s.
-func (c *viewCtl) computeAvailability(s *Set) (up, down, left, right bool) {
-	const eps = 1e-6
-	up = c.first > eps
-	visible := laneAvail() / c.laneH
-	maxFirst := math.Max(0, float64(len(s.Tracks))-visible)
-	down = c.first < maxFirst-eps
-	left = c.x0 > eps
-	maxX0 := math.Max(0, totalBeats(s)-c.span())
-	right = c.x0 < maxX0-eps
-	return
-}
-
-// notifyAvailability tells onAvail (if set) the current availability. Assumes
-// c.mu is held and c is already clamped for s -- call it last, deferred, so it
-// always sees the state a mutator leaves behind.
-func (c *viewCtl) notifyAvailability(s *Set) {
-	if c.onAvail != nil {
-		c.onAvail(c.computeAvailability(s))
-	}
-}
-
-// availability: current scroll availability, without changing anything --
-// used for the initial LED sync when the mode turns on.
-func (c *viewCtl) availability(s *Set) (up, down, left, right bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.clamp(s)
-	return c.computeAvailability(s)
-}
-
 // viewport returns the clamped view for s.
 func (c *viewCtl) viewport(s *Set) viewport {
 	c.mu.Lock()
@@ -181,7 +139,6 @@ func (c *viewCtl) zoomH(steps int) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.clamp(s)
 	center := zoomPivot(s)
 	c.ppb *= math.Pow(zoomStep, float64(steps))
@@ -198,7 +155,6 @@ func (c *viewCtl) zoomV(steps int) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.clamp(s)
 	c.laneH *= math.Pow(zoomStep, float64(steps))
 	c.clamp(s)
@@ -211,7 +167,6 @@ func (c *viewCtl) scrollT(ticks int) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.clamp(s)
 	c.x0 += float64(ticks) * jogPxPerTick / c.ppb
 	c.clamp(s)
@@ -225,7 +180,6 @@ func (c *viewCtl) scrollPage(dir int) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.clamp(s)
 	c.x0 += float64(dir) * c.span() / 4
 	c.clamp(s)
@@ -239,9 +193,26 @@ func (c *viewCtl) scrollTracks(dir int) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.clamp(s)
 	c.first += float64(dir)
+	c.clamp(s)
+}
+
+// revealTrack scrolls the tracks the least needed so track i is fully in view.
+func (c *viewCtl) revealTrack(i int) {
+	s := c.get()
+	if s == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clamp(s)
+	visible := math.Floor(laneAvail() / c.laneH)
+	if float64(i) < c.first {
+		c.first = float64(i)
+	} else if float64(i+1) > c.first+visible {
+		c.first = float64(i+1) - visible
+	}
 	c.clamp(s)
 }
 
@@ -254,7 +225,6 @@ func (c *viewCtl) resetToFit() {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defer c.notifyAvailability(s)
 	c.ppb = fitPPB(s)
 	c.laneH = fitLane(s)
 	c.x0 = 0
@@ -294,29 +264,6 @@ func (c *viewCtl) reveal(t float64) {
 		c.x0 = t - span/2
 		c.clamp(s)
 	}
-}
-
-// handleCC applies one control-surface CC. Returns true if the view changed.
-func (c *viewCtl) handleCC(cc, val uint8) bool {
-	switch cc {
-	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
-		if val == 0 { // act on press only
-			return false
-		}
-		switch cc {
-		case ccDPadUp:
-			c.scrollTracks(-1)
-		case ccDPadDown:
-			c.scrollTracks(+1)
-		case ccDPadLeft:
-			c.scrollPage(-1)
-		case ccDPadRight:
-			c.scrollPage(+1)
-		}
-	default:
-		return false
-	}
-	return true
 }
 
 // setToast shows a short message on the view for d.

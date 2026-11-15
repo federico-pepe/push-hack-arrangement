@@ -56,6 +56,11 @@ type store struct {
 	hasSelLocator bool
 	selLocator    float64
 
+	// Selected clip: track index + clip start. See Set.HasSelClip.
+	hasSelClip bool
+	selTrack   int
+	selStart   float64
+
 	// Scrub cursor (plain jog wheel). Local only, never sent to or echoed by
 	// Live: this is the whole point -- looking around without seeking. A real
 	// seek (setLocalTime, from Shift+jog, locator nav or the anchor jump)
@@ -78,6 +83,7 @@ func (st *store) get() (*Set, string, string) {
 	s.PunchIn, s.PunchOut = st.punchIn, st.punchOut
 	s.HasAnchor, s.Anchor = st.hasAnchor, st.anchor
 	s.HasSelLocator, s.SelLocator = st.hasSelLocator, st.selLocator
+	s.HasSelClip, s.SelTrack, s.SelStart = st.hasSelClip, st.selTrack, st.selStart
 	s.HasCursor, s.Cursor = st.hasCursor, st.cursor
 	return &s, "", ""
 }
@@ -204,6 +210,13 @@ func (st *store) setSelLocator(t float64) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.hasSelLocator, st.selLocator = true, t
+}
+
+// setSelClip remembers the selected clip (track index, clip start in beats).
+func (st *store) setSelClip(track int, start float64) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.hasSelClip, st.selTrack, st.selStart = true, track, start
 }
 
 const hintActivate = "Enable PushHack in Live Preferences (control surface, Input/Output None), restart Live"
@@ -419,6 +432,7 @@ func request(m map[string]any) (map[string]any, bool) {
 		"set_time": "transport", "set_loop": "transport", "play_toggle": "transport",
 		"bta": "arrangement", "loop_toggle": "arrangement",
 		"punch_in_toggle": "arrangement", "punch_out_toggle": "arrangement",
+		"select_clip": "arrangement",
 	}[t]
 	if ns == "" {
 		return nil, false

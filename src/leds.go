@@ -50,9 +50,7 @@ func resetLit() {
 }
 
 // syncStateLEDs: Play is green while playing; Session is bright white when Back
-// to Arrangement is available. Page left/right are always white -- they
-// navigate locators, not a state -- and the loop/punch buttons follow the
-// transport.
+// to Arrangement is available. the loop/punch buttons follow the transport.
 func syncStateLEDs(playing, bta bool) {
 	play, session := byte(ledWhite), byte(0)
 	if playing {
@@ -79,26 +77,12 @@ func syncTransportLEDs(loopOn, punchIn, punchOut bool) {
 	setLED(byte(push3.CCScreenTop3), v(punchOut))
 }
 
-// syncNavLEDs: Page left/right are always lit white while the mode is on --
-// they move between locators, not a state to reflect.
+// syncNavLEDs: Page, Octave and the D-pad are always white while the mode is on.
 func syncNavLEDs() {
-	setLED(byte(push3.CCPageLeft), ledWhite)
-	setLED(byte(push3.CCPageRight), ledWhite)
-}
-
-// syncDPadLEDs: each D-pad direction is white only while it can still scroll
-// further (see viewCtl.computeAvailability), dark at the edge.
-func syncDPadLEDs(up, down, left, right bool) {
-	v := func(on bool) byte {
-		if on {
-			return ledWhite
-		}
-		return 0
+	for _, cc := range []int{push3.CCPageLeft, push3.CCPageRight, push3.CCOctaveUp, push3.CCOctaveDown,
+		push3.CCDPadLeft, push3.CCDPadRight, push3.CCDPadUp, push3.CCDPadDown, push3.CCDPadCenter} {
+		setLED(byte(cc), ledWhite)
 	}
-	setLED(byte(push3.CCDPadUp), v(up))
-	setLED(byte(push3.CCDPadDown), v(down))
-	setLED(byte(push3.CCDPadLeft), v(left))
-	setLED(byte(push3.CCDPadRight), v(right))
 }
 
 // Palette indices chosen on the device.

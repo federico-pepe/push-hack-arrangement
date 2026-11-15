@@ -75,7 +75,6 @@ func main() {
 
 	st := &store{}
 	vc := newViewCtl(func() *Set { s, _, _ := st.get(); return s })
-	vc.onScrollAvailability(syncDPadLEDs)
 	var mode *modeCtl // set below; touch's callback closes over it
 
 	var ctl *controls // set below; touch's callback reads it at render time
@@ -136,9 +135,6 @@ func main() {
 		syncStateLEDs(playing, bta)
 		syncTransportLEDs(loopOn, punchIn, punchOut)
 		syncNavLEDs()
-		if s, _, _ := st.get(); s != nil {
-			syncDPadLEDs(vc.availability(s))
-		}
 	}
 
 	stop := make(chan struct{})

@@ -158,6 +158,13 @@ func renderArrangement(s *Set, v viewport) *image.NRGBA {
 				col = dim(col)
 			}
 			fill(img, x0, y0, w, h, g, top, col)
+			if s.HasSelClip && s.SelTrack == i && sameBeat(c.Start, s.SelStart) {
+				// selected clip: white outline
+				fill(img, x0, y0, w, 1, g, top, colPlay)
+				fill(img, x0, y0+h-1, w, 1, g, top, colPlay)
+				fill(img, x0, y0, 1, h, g, top, colPlay)
+				fill(img, x0+w-1, y0, 1, h, g, top, colPlay)
+			}
 			// clip name when there is room
 			if v.laneH >= namesMinLane && w >= 36 && y0 >= top && y0+h <= screenH {
 				tc := colBG

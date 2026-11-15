@@ -13,13 +13,19 @@ package main
 //   Delete + Tempo press   reset the zoom to fit the whole song, every track
 //   Play             start / stop Live -- from the anchor, if one is set
 //   Session          Back to Arrangement (Shift + Session is the mode chord)
-//   Page < / >       jump to the previous / next locator (a real seek)
+//   Page < / >       scroll the view in time, a quarter screen; hold to repeat
+//   Shift + Page < / >  jump to the previous / next locator (a real seek)
+//   Octave + / -     scroll the tracks up / down; hold to repeat
 //   Top button 1     Loop on/off
 //   Top button 2     Punch In on/off
 //   Top button 3     Punch Out on/off
 //   Encoder 1        loop start, in bars (Shift = a precise 1/16 beat step)
 //   Encoder 2        loop length, in bars (Shift = a precise 1/16 beat step)
-//   D-pad            scroll; hold to repeat
+//   D-pad            Push 2 has no jog wheel, so the D-pad only mirrors other controls:
+//                    left/right = jog wheel (one step; Shift = a real seek),
+//                    centre click = jog wheel click. Up/down select the clip on the
+//                    track above / below, at the cursor or playhead time (see
+//                    selectClip). Hold to repeat (not the centre).
 
 import (
 	"math"
@@ -32,16 +38,18 @@ import (
 
 // CCs, named from core/push3 rather than restated as magic numbers.
 const (
-	ccPlay      = push3.CCPlay
-	ccJogPress  = push3.CCJogPress   // jog wheel click: set/clear the play-start anchor
-	ccDelete    = push3.CCDelete     // held + Tempo press: reset zoom to fit
-	ccPageLeft  = push3.CCPageLeft   // previous locator
-	ccPageRight = push3.CCPageRight  // next locator
-	ccTopLoop   = push3.CCScreenTop1 // top button 1: Loop on/off
-	ccTopPunchI = push3.CCScreenTop2 // top button 2: Punch In
-	ccTopPunchO = push3.CCScreenTop3 // top button 3: Punch Out
-	ccEncoder1  = push3.CCEncoder1   // loop start
-	ccEncoder2  = push3.CCEncoder2   // loop length
+	ccPlay       = push3.CCPlay
+	ccJogPress   = push3.CCJogPress   // jog wheel click: set/clear the play-start anchor
+	ccDelete     = push3.CCDelete     // held + Tempo press: reset zoom to fit
+	ccPageLeft   = push3.CCPageLeft   // scroll view back; Shift: previous locator
+	ccPageRight  = push3.CCPageRight  // scroll view forward; Shift: next locator
+	ccTopLoop    = push3.CCScreenTop1 // top button 1: Loop on/off
+	ccTopPunchI  = push3.CCScreenTop2 // top button 2: Punch In
+	ccTopPunchO  = push3.CCScreenTop3 // top button 3: Punch Out
+	ccOctaveUp   = push3.CCOctaveUp   // scroll tracks up
+	ccOctaveDown = push3.CCOctaveDown // scroll tracks down
+	ccEncoder1   = push3.CCEncoder1   // loop start
+	ccEncoder2   = push3.CCEncoder2   // loop length
 
 	jogTargetPx = 10 // wanted screen distance of one jog tick, before the speed ramp
 
@@ -146,7 +154,7 @@ func (c *controls) onCC(cc, val uint8) {
 	switch cc {
 	case ccJog:
 		c.jog(push3.DecodeRel(val))
-	case ccJogPress:
+	case ccJogPress, ccDPadCenter: // D-pad centre mirrors the jog wheel click
 		if val > 0 {
 			c.jogPress()
 		}
@@ -182,14 +190,6 @@ func (c *controls) onCC(cc, val uint8) {
 			c.feedback("bta", false) // BTA always clears the override
 			c.changed()
 		}
-	case ccPageLeft:
-		if val > 0 {
-			c.locatorNav(false)
-		}
-	case ccPageRight:
-		if val > 0 {
-			c.locatorNav(true)
-		}
 	case ccTopLoop:
 		if val > 0 {
 			c.toggleLoop()
@@ -206,12 +206,8 @@ func (c *controls) onCC(cc, val uint8) {
 		c.adjustLoop(true, push3.DecodeRel(val))
 	case ccEncoder2:
 		c.adjustLoop(false, push3.DecodeRel(val))
-	case ccDPadUp, ccDPadDown, ccDPadLeft, ccDPadRight:
-		c.dpad(cc, val)
-	default:
-		if c.vc.handleCC(cc, val) {
-			c.changed()
-		}
+	case ccDPadLeft, ccDPadRight, ccDPadUp, ccDPadDown, ccOctaveUp, ccOctaveDown, ccPageLeft, ccPageRight:
+		c.repeating(cc, val)
 	}
 }
 
@@ -424,8 +420,8 @@ func (c *controls) resetZoom() {
 	time.AfterFunc(toastFor+50*time.Millisecond, c.changed)
 }
 
-// dpad: act on press, then repeat while held.
-func (c *controls) dpad(cc, val uint8) {
+// repeating: D-pad, Octave and Page buttons act on press, then repeat while held.
+func (c *controls) repeating(cc, val uint8) {
 	c.mu.Lock()
 	stop, held := c.hold[cc]
 	if val == 0 {
@@ -444,7 +440,10 @@ func (c *controls) dpad(cc, val uint8) {
 	c.hold[cc] = stop
 	c.mu.Unlock()
 
-	c.dpadAction(cc)
+	c.repeatAction(cc, true)
+	if (cc == ccPageLeft || cc == ccPageRight) && c.shiftHeld() {
+		return // locator jump: once per press, no repeat
+	}
 	go func() {
 		start := time.Now()
 		select {
@@ -456,7 +455,7 @@ func (c *controls) dpad(cc, val uint8) {
 			if !c.isOn() {
 				return
 			}
-			c.dpadAction(cc)
+			c.repeatAction(cc, false)
 			every := repeatEvery
 			if time.Since(start) > repeatFastAfter {
 				every /= 2
@@ -470,21 +469,89 @@ func (c *controls) dpad(cc, val uint8) {
 	}()
 }
 
-func (c *controls) dpadAction(cc uint8) {
-	switch cc {
-	case ccDPadUp:
-		c.vc.scrollTracks(-1)
-	case ccDPadDown:
-		c.vc.scrollTracks(+1)
-	case ccDPadLeft:
-		c.vc.scrollPage(-1)
-	case ccDPadRight:
-		c.vc.scrollPage(+1)
+// pickClip: the clip that holds time t, else the one nearest to t.
+func pickClip(clips []Clip, t float64) (Clip, bool) {
+	if len(clips) == 0 {
+		return Clip{}, false
 	}
-	c.changed()
+	best, bestD := clips[0], math.Inf(1)
+	for _, cl := range clips {
+		if t >= cl.Start && t < cl.End {
+			return cl, true
+		}
+		d := math.Min(math.Abs(t-cl.Start), math.Abs(t-cl.End))
+		if d < bestD {
+			best, bestD = cl, d
+		}
+	}
+	return best, true
 }
 
-// releaseAll stops every D-pad repeat (mode turned off).
+// selectClip moves the clip selection one track up (dir -1) or down (+1),
+// skipping tracks with no clips. The clip is the one at the cursor/playhead
+// time, or the nearest. With nothing selected yet it starts at the top visible
+// track. Live selects the same clip (select_clip), so its Detail view follows.
+func (c *controls) selectClip(dir int) {
+	s, _, _ := c.st.get()
+	if s == nil {
+		return
+	}
+	i := int(math.Ceil(c.vc.viewport(s).first - 1e-6)) // nothing selected: top visible track
+	if s.HasSelClip {
+		i = s.SelTrack + dir
+	}
+	t := c.cursorOrPlayhead()
+	for ; i >= 0 && i < len(s.Tracks); i += dir {
+		cl, ok := pickClip(s.Tracks[i].Clips, t)
+		if !ok {
+			continue
+		}
+		c.st.setSelClip(i, cl.Start)
+		c.vc.revealTrack(i)
+		c.send(map[string]any{"t": "select_clip", "track": i, "start": cl.Start})
+		c.vc.setToast(text.Truncate(s.Tracks[i].Name, 12)+" "+text.Truncate(cl.Name, 12), toastFor)
+		c.changed()
+		time.AfterFunc(toastFor+50*time.Millisecond, c.changed)
+		return
+	}
+}
+
+// repeatAction: one step of a held button. first is true for the press itself.
+// Page with Shift is a locator jump, so it only acts on the press.
+func (c *controls) repeatAction(cc uint8, first bool) {
+	switch cc {
+	case ccDPadLeft: // mirrors the jog wheel; jog() redraws by itself
+		c.jog(-1)
+	case ccDPadRight:
+		c.jog(+1)
+	case ccDPadUp: // select the clip on the track above
+		c.selectClip(-1)
+	case ccDPadDown:
+		c.selectClip(+1)
+	case ccOctaveUp:
+		c.vc.scrollTracks(-1)
+		c.changed()
+	case ccOctaveDown:
+		c.vc.scrollTracks(+1)
+		c.changed()
+	case ccPageLeft, ccPageRight:
+		forward := cc == ccPageRight
+		if c.shiftHeld() {
+			if first {
+				c.locatorNav(forward)
+			}
+			return
+		}
+		dir := -1
+		if forward {
+			dir = +1
+		}
+		c.vc.scrollPage(dir)
+		c.changed()
+	}
+}
+
+// releaseAll stops every button repeat (mode turned off).
 func (c *controls) releaseAll() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

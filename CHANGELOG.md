@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- D-pad up / down select the clip on the track above / below, at the scrub marker or playhead time (or the nearest clip). The clip gets a white outline and Live selects it too (new command `select_clip` in the PushHack Remote Script; needs a script release that has it, and a Live restart). This is the first step toward editing.
+
+### Changed
+- The D-pad has no job of its own (Push 2 has no jog wheel). Left / right do what the jog wheel does (one jog step; Shift = a real seek). The centre click does what the jog wheel click does (play-start anchor). Up / down select clips (see Added). All repeat while held (not the centre), and all D-pad LEDs are white. The D-pad no longer scrolls the view by itself. The LEDs no longer follow how far the view can scroll.
+- Octave + / - scroll the tracks up / down, and repeat while held.
+- Page < / > now scroll the view in time (a quarter screen), and repeat while held. Shift + Page < / > jump to the previous / next locator, which Page < / > did before (one jump per press).
+
 ## [0.0.11-alpha] - 2026-11-12
 
 First public release, installable from the Push Hack catalog.

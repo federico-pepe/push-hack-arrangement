@@ -57,6 +57,7 @@ for each topic, and again each time the value changes.
 | `{"ns":"arrangement","cmd":"loop_toggle"}` | Flip `song.loop` |
 | `{"ns":"arrangement","cmd":"punch_in_toggle"}` | Flip `song.punch_in` |
 | `{"ns":"arrangement","cmd":"punch_out_toggle"}` | Flip `song.punch_out` |
+| `{"ns":"arrangement","cmd":"select_clip","track":<index>,"start":<beats>}` | Select the clip on that track that starts there (the track becomes the selected track and the clip shows in the Detail view). Errors: `bad_track`, `bad_arg`, `no_clip` |
 | `{"ns":"transport","cmd":"set_loop","start":<beats>,"length":<beats>}` | Move or resize the loop |
 
 Each command gets a reply (`{"ok":true}`). The hack ignores it. A failed command gets `"ok":false` and
